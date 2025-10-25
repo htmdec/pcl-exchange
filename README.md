@@ -1,4 +1,4 @@
-# PCL Exchange — RO-Crate Profile, Schemas, and Shapes
+# PCL Exchange proposal using RO-Crate Profile, Schemas, and Shapes
 
 This repository captures a minimal, interoperable **PCL-to-PCL exchange** pattern using:
 - **RO-Crate** as the packaging and JSON-LD context carrier
