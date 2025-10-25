@@ -1,4 +1,4 @@
-# PCL Exchange — RO-Crate Profile, Schemas, and Shapes
+# PCL Exchange proposal using RO-Crate Profile, Schemas, and Shapes
 
 This repository captures MADICES week conception for a minimal, interoperable **PCL-to-PCL exchange** pattern with inspiration from Peter Kraus and Matthew  Evans and Abigail Miller and the Jackson Laboratory data model and the JSON-LD from Simon Stier.  It uses:
 - **RO-Crate** as the packaging and JSON-LD context carrier
