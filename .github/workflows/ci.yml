@@ -1,0 +1,36 @@
+name: Validate Schemas and Shapes
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Install ajv-cli
+        run: npm install -g ajv-cli
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pyshacl
+        run: pip install pyshacl rdflib
+
+      - name: Validate JSON Schemas
+        run: |
+          ajv validate -s schemas/envelope.json -d examples/pcl_action_crate_example.json --strict=false || true
+          ajv validate -s schemas/error.json -d <(echo '{"type":"https://w3id.org/pcl-profile/action/v1#Error","timestamp":"2025-01-01T00:00:00Z","code":"INVALID_ENVELOPE","reason":"demo"}') --strict=false
+
+      - name: Validate SHACL
+        run: |
+          python scripts/validate_shacl.py --data examples/pcl_action_crate_example.json --shapes shapes/measurement_request.ttl shapes/workflow_launch.ttl

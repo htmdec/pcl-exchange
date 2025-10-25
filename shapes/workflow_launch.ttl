@@ -1,0 +1,165 @@
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <http://schema.org/> .
+@prefix prov:   <http://www.w3.org/ns/prov#> .
+@prefix qudt:   <http://qudt.org/schema/qudt/> .
+@prefix pcl:    <https://w3id.org/pcl-profile/action/v1/terms#> .
+
+###############################################################################
+# Root shape for a workflow launch content entity
+# Targets a CWL or similar descriptor carried as SoftwareSourceCode
+###############################################################################
+
+pcl:WorkflowLaunchShape
+    a sh:NodeShape ;
+    sh:targetClass schema:SoftwareSourceCode ;
+    sh:property [
+        sh:path schema:name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path schema:programmingLanguage ;
+        sh:minCount 1 ;
+        sh:message "Declare the workflow language. Example: CWL v1.2" ;
+    ] ;
+    # One of: inline descriptor file in the crate OR remote descriptor URI
+    sh:or (
+        [ sh:property [
+              sh:path schema:hasPart ;
+              sh:minCount 1 ;
+              sh:node pcl:WorkflowDescriptorFileShape ;
+          ] ]
+        [ sh:property [
+              sh:path schema:codeRepository ;
+              sh:minCount 1 ;
+              sh:nodeKind sh:IRI ;
+              sh:message "Repository or descriptor URI required when no file is embedded" ;
+          ] ]
+    ) ;
+    # Optional container images to ensure supply chain integrity
+    sh:property [
+        sh:path pcl:usesContainer ;
+        sh:node pcl:ContainerImageShape ;
+        sh:minCount 0 ;
+        sh:maxCount 50 ;
+    ] ;
+    # Parameter set to pass to the workflow at launch
+    sh:property [
+        sh:path schema:parameter ;
+        sh:minCount 1 ;
+        sh:node pcl:ParameterShape ;
+    ] ;
+    # Optional sample and project binding if not only in the envelope
+    sh:property [
+        sh:path schema:object ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "Reference the primary research object (for example the IGSN sample)" ;
+    ] ;
+    sh:property [
+        sh:path schema:isPartOf ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "Reference the project PID (for example a DOI or ARK)" ;
+    ] ;
+    # Optional expected outputs description
+    sh:property [
+        sh:path schema:result ;
+        sh:maxCount 1 ;
+        sh:node pcl:ExpectedResultShape ;
+    ] .
+
+###############################################################################
+# Descriptor file embedded in the RO-Crate (for example a CWL file)
+###############################################################################
+
+pcl:WorkflowDescriptorFileShape
+    a sh:NodeShape ;
+    sh:targetClass schema:CreativeWork ;
+    sh:property [
+        sh:path schema:encodingFormat ;
+        sh:minCount 1 ;
+        sh:in ( "application/cwl" "text/x-yaml" "application/json" ) ;
+        sh:message "Descriptor must declare an encoding format. Use application/cwl for CWL." ;
+    ] ;
+    sh:property [
+        sh:path schema:contentUrl ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "Point to the embedded file path or external URL" ;
+    ] ;
+    sh:property [
+        sh:path schema:sha256 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] .
+
+###############################################################################
+# Container image shape (OCI style; digest is strongly recommended)
+###############################################################################
+
+pcl:ContainerImageShape
+    a sh:NodeShape ;
+    sh:property [
+        sh:path schema:identifier ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Use a canonical image reference. Example: ghcr.io/org/tool:1.4.3" ;
+    ] ;
+    sh:property [
+        sh:path pcl:digest ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^sha256:[A-Fa-f0-9]{64}$" ;
+        sh:message "Include OCI digest to pin the image" ;
+    ] ;
+    sh:property [
+        sh:path schema:contentUrl ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "Optional SBOM or signature URL" ;
+    ] .
+
+###############################################################################
+# Parameter shape (same as in measurement requests)
+###############################################################################
+
+pcl:ParameterShape
+    a sh:NodeShape ;
+    sh:targetClass schema:PropertyValue ;
+    sh:property [
+        sh:path schema:name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path schema:value ;
+        sh:minCount 1 ;
+    ] ;
+    sh:property [
+        sh:path qudt:unit ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+    ] ;
+    sh:property [
+        sh:path schema:unitText ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] .
+
+###############################################################################
+# Expected results (optional)
+###############################################################################
+
+pcl:ExpectedResultShape
+    a sh:NodeShape ;
+    sh:targetClass schema:CreativeWork ;
+    sh:property [
+        sh:path schema:about ;
+        sh:minCount 1 ;
+    ] ;
+    sh:property [
+        sh:path schema:distribution ;
+        sh:maxCount 10 ;
+    ] .

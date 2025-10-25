@@ -1,0 +1,14 @@
+# General
+.DS_Store
+*.pyc
+__pycache__/
+*.log
+
+# Node/Yarn (if used downstream for tooling)
+node_modules/
+dist/
+
+# Python virtual envs
+.venv/
+env/
+venv/

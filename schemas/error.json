@@ -1,0 +1,100 @@
+{
+  "$id": "https://w3id.org/pcl-profile/action/v1/schema/error.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PCLError",
+  "type": "object",
+  "required": ["type", "timestamp", "code", "reason"],
+  "additionalProperties": false,
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "https://w3id.org/pcl-profile/action/v1#Error"
+    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "code": {
+      "type": "string",
+      "enum": [
+        "INVALID_ENVELOPE",
+        "UNAUTHORIZED",
+        "FORBIDDEN",
+        "SCHEMA_MISMATCH",
+        "UNSUPPORTED_ACTION",
+        "CAPABILITY_MISMATCH",
+        "NOT_FOUND",
+        "CONFLICT",
+        "RATE_LIMITED",
+        "TEMPORARY_FAILURE",
+        "INTERNAL_ERROR"
+      ]
+    },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 2048 },
+    "correlationId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{6,128}$"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{6,128}$"
+    },
+    "httpStatus": { "type": "integer", "minimum": 100, "maximum": 599 },
+    "retriable": { "type": "boolean", "default": false },
+    "retryAfter": {
+      "description": "Either an RFC 7231 HTTP-date or a delta-seconds value",
+      "oneOf": [
+        { "type": "integer", "minimum": 1 },
+        { "type": "string", "format": "date-time" }
+      ]
+    },
+    "faults": {
+      "description": "Fine grained validation faults",
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "required": ["message"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "description": "JSON Pointer or JSONPath to the offending field",
+            "type": "string"
+          },
+          "schema": {
+            "description": "URI of the violated schema or shape",
+            "type": "string",
+            "format": "uri"
+          },
+          "message": { "type": "string", "minLength": 1, "maxLength": 512 }
+        }
+      }
+    },
+    "details": {
+      "description": "Machine readable extra data for debugging or recovery",
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "examples": [
+    {
+      "type": "https://w3id.org/pcl-profile/action/v1#Error",
+      "timestamp": "2025-10-25T08:41:12Z",
+      "code": "SCHEMA_MISMATCH",
+      "reason": "Envelope failed JSON Schema validation",
+      "httpStatus": 422,
+      "retriable": false,
+      "correlationId": "pcl-req-00042",
+      "idempotencyKey": "pcl-req-00042-v1",
+      "faults": [
+        {
+          "path": "/capabilities/0",
+          "schema": "https://w3id.org/pcl-profile/action/v1/schema/envelope.json",
+          "message": "Value must match ^[a-z0-9][a-z0-9./_-]{2,}$"
+        }
+      ],
+      "details": {
+        "profile": "https://w3id.org/pcl-profile/action/v1",
+        "schemaVersion": "1.0"
+      }
+    }
+  ]
+}

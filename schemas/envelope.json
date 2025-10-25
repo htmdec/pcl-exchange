@@ -1,0 +1,214 @@
+{
+  "$id": "https://w3id.org/pcl-profile/action/v1/schema/envelope.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PCLActionEnvelope",
+  "type": "object",
+  "required": [
+    "profile",
+    "identifier",
+    "dateCreated",
+    "sender",
+    "receiver",
+    "schema",
+    "action",
+    "contentRef",
+    "project",
+    "sample",
+    "capabilities",
+    "authz"
+  ],
+  "properties": {
+    "profile": {
+      "type": "string",
+      "format": "uri",
+      "const": "https://w3id.org/pcl-profile/action/v1"
+    },
+    "identifier": {
+      "type": "string",
+      "pattern": "^(urn:uuid:[0-9a-fA-F-]{36}|[A-Za-z0-9._~:-]{8,})$"
+    },
+    "dateCreated": { "type": "string", "format": "date-time" },
+    "sender": {
+      "type": "string",
+      "oneOf": [
+        { "pattern": "^https://ror\\.org/[0-9a-hjkmnp-z]{9}$" },
+        { "pattern": "^https://orcid\\.org/\\d{4}-\\d{4}-\\d{4}-\\d{3}[\\dX]$" },
+        { "format": "uri" }
+      ],
+      "description": "ROR preferred for organizations, ORCID for people"
+    },
+    "receiver": {
+      "type": "string",
+      "oneOf": [
+        { "pattern": "^https://ror\\.org/[0-9a-hjkmnp-z]{9}$" },
+        { "format": "uri" }
+      ]
+    },
+    "schema": {
+      "type": "string",
+      "format": "uri",
+      "description": "URI of the body schema and version (for example https://w3id.org/pcl-schema/measure-request/v1.0)"
+    },
+    "schemaHash": {
+      "type": "object",
+      "required": ["alg", "value"],
+      "properties": {
+        "alg": { "type": "string", "enum": ["sha256", "sha384", "sha512"] },
+        "value": { "type": "string", "pattern": "^[A-Fa-f0-9]{64,128}$" }
+      },
+      "additionalProperties": false
+    },
+    "contentRef": {
+      "description": "Link to the content entity inside the RO-Crate graph or an external URI",
+      "oneOf": [
+        { "type": "string", "pattern": "^#.+$" },
+        { "type": "string", "format": "uri" }
+      ]
+    },
+    "contentDigest": {
+      "type": "object",
+      "required": ["alg", "value"],
+      "properties": {
+        "alg": { "type": "string", "enum": ["sha256", "sha384", "sha512"] },
+        "value": { "type": "string", "pattern": "^[A-Fa-f0-9]{64,128}$" },
+        "size": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "encoding": {
+      "type": "string",
+      "enum": ["identity", "gzip", "zstd"]
+    },
+    "encryption": {
+      "type": "object",
+      "required": ["alg"],
+      "properties": {
+        "alg": { "type": "string" },
+        "kid": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "register_data",
+        "request_measurement",
+        "launch_workflow",
+        "update_metadata",
+        "cancel_job",
+        "ack",
+        "nack"
+      ]
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9./_-]{2,}$" },
+      "description": "Required features, for example xrd.powder.theta-2theta"
+    },
+    "project": {
+      "type": "string",
+      "oneOf": [
+        { "pattern": "^doi:10\\.[0-9]{4,9}/\\S+$" },
+        { "pattern": "^ark:/.+$" },
+        { "format": "uri" }
+      ]
+    },
+    "sample": {
+      "type": "string",
+      "oneOf": [
+        { "pattern": "^igsn:[A-Za-z0-9./:-]{5,}$" },
+        { "format": "uri" }
+      ]
+    },
+    "authz": {
+      "description": "Authorization artifact",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "jws"],
+          "properties": {
+            "type": { "const": "DetachedJWS" },
+            "jws": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type", "vpRef"],
+          "properties": {
+            "type": { "const": "VerifiablePresentationRef" },
+            "vpRef": { "type": "string", "format": "uri" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "respondTo": { "type": "string", "format": "uri" },
+    "ttl": {
+      "type": "string",
+      "pattern": "^P(?!$)(\\d+Y)?(\\d+M)?(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+S)?)?$",
+      "description": "ISO 8601 duration"
+    },
+    "deadline": { "type": "string", "format": "date-time" },
+    "priority": { "type": "integer", "minimum": 0, "maximum": 9 },
+    "correlationId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{6,128}$"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{6,128}$"
+    },
+    "protocolVersion": {
+      "type": "string",
+      "pattern": "^v?\\d+\\.\\d+(\\.\\d+)?$",
+      "default": "1.0"
+    },
+    "location": {
+      "type": "object",
+      "properties": {
+        "transport": { "type": "string", "enum": ["http", "kafka", "nats", "s3", "drs"] },
+        "topicOrPath": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "sensitivity": {
+      "type": "string",
+      "enum": ["public", "internal", "restricted", "export_control"]
+    },
+    "policyRefs": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" }
+    },
+    "prov": {
+      "type": "object",
+      "properties": {
+        "wasAttributedTo": { "type": "string", "format": "uri" },
+        "generatedAtTime": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "profile": "https://w3id.org/pcl-profile/action/v1",
+      "identifier": "urn:uuid:1c6b3e2f-7b1a-4c2e-9f3a-1a2b3c4d5e6f",
+      "dateCreated": "2025-10-25T08:15:30Z",
+      "sender": "https://ror.org/03yrm5c26",
+      "receiver": "https://ror.org/01bj3aw27",
+      "schema": "https://w3id.org/pcl-schema/measure-request/v1.0",
+      "action": "request_measurement",
+      "capabilities": ["xrd.powder.theta-2theta"],
+      "project": "doi:10.1234/project.5678",
+      "sample": "igsn:XYZ12345",
+      "contentRef": "#content",
+      "authz": { "type": "DetachedJWS", "jws": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..." },
+      "respondTo": "https://aimd-l.example.org/hooks/status",
+      "ttl": "PT10M",
+      "correlationId": "pcl-req-00042",
+      "idempotencyKey": "pcl-req-00042-v1"
+    }
+  ]
+}

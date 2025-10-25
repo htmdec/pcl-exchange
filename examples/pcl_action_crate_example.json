@@ -1,0 +1,141 @@
+{
+  "@context": [
+    "https://w3id.org/ro/crate/1.1/context",
+    {
+      "prov": "http://www.w3.org/ns/prov#",
+      "odrl": "http://www.w3.org/ns/odrl/2/",
+      "qudt": "http://qudt.org/schema/qudt/",
+      "duo": "http://purl.obolibrary.org/obo/duo#"
+    }
+  ],
+  "@graph": [
+    {
+      "@id": "ro-crate-metadata.json",
+      "@type": "CreativeWork",
+      "conformsTo": {
+        "@id": "https://w3id.org/ro/crate/1.1"
+      },
+      "about": {
+        "@id": "./"
+      }
+    },
+    {
+      "@id": "./",
+      "@type": "Dataset",
+      "name": "PCL Action Crate",
+      "hasPart": [
+        {
+          "@id": "#envelope"
+        },
+        {
+          "@id": "#content"
+        }
+      ],
+      "identifier": "urn:uuid:1c6b3e2f-..."
+    },
+    {
+      "@id": "#envelope",
+      "@type": "PCLActionEnvelope",
+      "profile": "https://w3id.org/pcl-profile/action/v1",
+      "identifier": "urn:uuid:1c6b3e2f-...",
+      "dateCreated": "2025-10-25T08:15:30Z",
+      "sender": {
+        "@id": "https://ror.org/03yrm5c26"
+      },
+      "receiver": {
+        "@id": "https://ror.org/01bj3aw27"
+      },
+      "schema": "https://w3id.org/pcl-schema/measure-request/v1.0",
+      "contentRef": {
+        "@id": "#content"
+      },
+      "action": "request_measurement",
+      "capabilities": [
+        "xrd.powder.theta-2theta"
+      ],
+      "project": "doi:10.1234/project.5678",
+      "sample": "igsn:XYZ12345",
+      "authz": {
+        "@id": "#vp"
+      },
+      "respondTo": "https://aimd-l.example.org/hooks/status",
+      "ttl": "PT10M",
+      "correlationId": "pcl-req-00042",
+      "idempotencyKey": "pcl-req-00042-v1"
+    },
+    {
+      "@id": "#content",
+      "@type": "Action",
+      "instrument": {
+        "@id": "urn:aimd:instrument:proto-xrd-01"
+      },
+      "object": {
+        "@id": "igsn:XYZ12345"
+      },
+      "prov:wasAttributedTo": {
+        "@id": "https://orcid.org/0000-0002-..."
+      },
+      "prov:used": {
+        "@id": "#method"
+      },
+      "expectsAcceptanceCriteria": {
+        "@id": "#criteria"
+      },
+      "parameter": [
+        {
+          "@type": "PropertyValue",
+          "name": "scan_range",
+          "value": "10 90",
+          "unitText": "deg 2\u03b8"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "step",
+          "value": 0.02,
+          "unitText": "deg"
+        }
+      ]
+    },
+    {
+      "@id": "#method",
+      "@type": "CreativeWork",
+      "name": "Powder XRD theta\u20132theta",
+      "identifier": "urn:aimd:method:xrd:powder:theta-2theta:v1"
+    },
+    {
+      "@id": "#criteria",
+      "@type": "CreativeWork",
+      "text": "SNR \u2265 20 at peak near 2\u03b8=28 deg; max dose 1 mC."
+    },
+    {
+      "@id": "#vp",
+      "@type": "VerifiablePresentation",
+      "odrl:hasPolicy": [
+        {
+          "@id": "#policy"
+        }
+      ],
+      "duo:hasDataUsePermission": [
+        {
+          "@id": "duo:0000006"
+        }
+      ]
+    },
+    {
+      "@id": "#policy",
+      "@type": "odrl:Policy",
+      "odrl:permission": [
+        {
+          "odrl:action": "use"
+        }
+      ],
+      "odrl:constraint": [
+        {
+          "odrl:leftOperand": "purpose",
+          "odrl:operator": "eq",
+          "odrl:rightOperand": "materials-research"
+        }
+      ]
+    }
+  ]
+}

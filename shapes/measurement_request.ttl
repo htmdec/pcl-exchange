@@ -1,0 +1,126 @@
+@prefix sh:    <http://www.w3.org/ns/shacl#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov:  <http://www.w3.org/ns/prov#> .
+@prefix schema: <http://schema.org/> .
+@prefix qudt:  <http://qudt.org/schema/qudt/> .
+@prefix pcl:   <https://w3id.org/pcl-profile/action/v1/terms#> .
+
+###############################################################################
+# Root shape for a PCL measurement request content entity
+###############################################################################
+
+pcl:MeasurementRequestShape
+    a sh:NodeShape ;
+    sh:targetClass schema:Action ;
+    sh:property [
+        sh:path schema:instrument ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "schema:instrument must be an IRI identifying the instrument" ;
+    ] ;
+    sh:property [
+        sh:path schema:object ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:pattern "^igsn:|^https?://" ;
+        sh:message "schema:object must reference the sample, preferably an IGSN" ;
+    ] ;
+    sh:property [
+        sh:path prov:wasAttributedTo ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+    ] ;
+    sh:property [
+        sh:path prov:used ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "prov:used must reference a method definition IRI" ;
+    ] ;
+    sh:property [
+        sh:path schema:expectsAcceptanceCriteria ;
+        sh:maxCount 1 ;
+        sh:node pcl:AcceptanceCriteriaShape ;
+    ] ;
+    sh:property [
+        sh:path schema:parameter ;
+        sh:minCount 1 ;
+        sh:node pcl:ParameterShape ;
+    ] .
+
+###############################################################################
+# Parameter shape (schema:PropertyValue with name and value, optional unit)
+###############################################################################
+
+pcl:ParameterShape
+    a sh:NodeShape ;
+    sh:targetClass schema:PropertyValue ;
+    sh:property [
+        sh:path schema:name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path schema:value ;
+        sh:minCount 1 ;
+    ] ;
+    sh:property [
+        sh:path schema:unitText ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path qudt:unit ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+    ] .
+
+###############################################################################
+# Acceptance criteria (simple CreativeWork with free text or structured refs)
+###############################################################################
+
+pcl:AcceptanceCriteriaShape
+    a sh:NodeShape ;
+    sh:targetClass schema:CreativeWork ;
+    sh:property [
+        sh:path schema:text ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] .
+
+###############################################################################
+# Optional method definition shape (if dereferenced for validation)
+###############################################################################
+
+pcl:MethodShape
+    a sh:NodeShape ;
+    sh:targetClass schema:CreativeWork ;
+    sh:property [
+        sh:path schema:identifier ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path schema:name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] .
+
+###############################################################################
+# Identifier helper shapes (can be used with sh:node on specific paths)
+###############################################################################
+
+pcl:IGSNIdentifierShape
+    a sh:NodeShape ;
+    sh:property [
+        sh:path [ sh:alternativePath ( schema:identifier schema:sameAs ) ] ;
+        sh:minCount 1 ;
+        sh:pattern "^igsn:[A-Za-z0-9./:-]{5,}$" ;
+    ] .
+
+pcl:DOIIdentifierShape
+    a sh:NodeShape ;
+    sh:property [
+        sh:path [ sh:alternativePath ( schema:identifier schema:sameAs ) ] ;
+        sh:minCount 1 ;
+        sh:pattern "^doi:10\\.[0-9]{4,9}/\\S+$" ;
+    ] .
