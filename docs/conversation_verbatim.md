@@ -1,13 +1,11 @@
-Great question. If two programmable cloud labs are going to exchange payloads reliably, you want a crisp separation between the message “envelope” and the domain “content,” and you want each section to be self-describing and verifiable. Below is a practical, minimal set that works in practice, plus an ontology-friendly data model that fits inside an RO-Crate profile without inventing new wheels.
-
-# The true minimum a receiving PCL needs
+# what is the minimum a receiving PCL needs?
 
 Think of this as the “MVP contract” between sender and receiver.
 
 1. **Who and where**
 
    * Sender identifier and public key reference (organization ROR and/or DID, person ORCID).
-   * Intended receiver identifier.
+   * Intended receiver identifier (maybe? not sure really)
    * Stable message id, creation time, and protocol/profile version.
 
 2. **What the payload is**
