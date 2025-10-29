@@ -1,5 +1,8 @@
 # PCL Exchange Proposal using RO-Crate Profile, Schemas, and Shapes
-<img width="191" height="20" alt="image" src="https://github.com/user-attachments/assets/d7aafa45-ba2c-452a-adef-2132b839d49e" />
+<a href="https://github.com/htmdec/pcl-exchange" target="_blank" rel="noopener noreferrer">
+  <img width="191" height="20" alt="image" src="https://github.com/user-attachments/assets/d7aafa45-ba2c-452a-adef-2132b839d49e" />
+</a>
+
 
 
 This repository captures the MADICES Week conception for a minimal, interoperable PCL-to-PCL exchange pattern.  
