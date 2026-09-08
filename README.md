@@ -118,13 +118,17 @@ Defines the outer envelope that carries metadata required for validation and rou
 | `authz` | JWT in detached JWS form, or a Verifiable Presentation reference |
 
 ### 2. Content Entity (Domain Payload)
-The payload itself, typically one of the following:
+The payload itself, one of the five closed-vocabulary action verbs:
 
-| Use Case | Entity Type | Key Fields |
+| Action | Entity Type | Minimal Required Fields |
 |--------|----------|--------|
-| **Data Registration** | `Dataset` | Distributions, checksums, and PIDs, plus PROV links |
-| **Workflow Launch** | `SoftwareSourceCode` or `ComputationalWorkflow` | CWL file, parameters, optional tool references |
-| **Measurement Request** | `Action` | Instrument, sample, method, parameters, and acceptance criteria |
+| `register_data` | `Dataset` | `name`, `identifier`, one `distribution` (`DataDownload` with `contentUrl`, `encodingFormat`, `sha256`) |
+| `request_measurement` | `Action` | `instrument`, `object` (sample), `prov:used` (method), `parameter` |
+| `launch_workflow` | `SoftwareSourceCode` | `name`, `programmingLanguage`, embedded descriptor or `codeRepository`, `parameter` |
+| `update_metadata` | `UpdateAction` | `object` (target IRI), one or more `parameter` replacements (name restricted to `name`, `description`, `license`, `keywords`) |
+| `cancel_job` | `Action` | `object` as a `PropertyValue` with `name: correlationId` referencing the original request's `correlationId` |
+
+`update_metadata` is replace-only in v1: each `parameter` overwrites the named field on the referenced resource. It does not support merge, delete, or arbitrary-field patching. `cancel_job` targets the originating request's `correlationId`, not a receiver-local job identifier, since only the sender-issued value is guaranteed to be known to both parties. `ack` and `nack` are protocol-level response statuses, not domain action verbs, and have no content shape of their own.
 
 --
 

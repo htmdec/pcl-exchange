@@ -1,17 +1,33 @@
 import copy
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import pcl_exchange.validation as validation
 from pcl_exchange.validation import get_shape_for_action, validate_semantics, validate_structure
 
+# Shared JSON-LD context for standalone content-node SHACL fixtures below.
+# sha256 is explicitly mapped because the RO-Crate context does not define it.
+_CONTENT_CONTEXT: List[Any] = [
+    "https://w3id.org/ro/crate/1.1/context",
+    {
+        "prov": "http://www.w3.org/ns/prov#",
+        "qudt": "http://qudt.org/schema/qudt/",
+        "parameter": "http://schema.org/parameter",
+        "unitText": "http://schema.org/unitText",
+        "sha256": "http://schema.org/sha256",
+    },
+]
+
 
 def test_get_shape_for_action_known_actions() -> None:
+    assert get_shape_for_action("register_data") == "shapes/register_data.ttl"
     assert get_shape_for_action("request_measurement") == "shapes/request_measurement.ttl"
     assert get_shape_for_action("launch_workflow") == "shapes/launch_workflow.ttl"
+    assert get_shape_for_action("update_metadata") == "shapes/update_metadata.ttl"
+    assert get_shape_for_action("cancel_job") == "shapes/cancel_job.ttl"
 
 
 def test_get_shape_for_action_unmapped_action() -> None:
-    assert get_shape_for_action("cancel_job") is None
+    assert get_shape_for_action("unknown_action") is None
 
 
 def test_get_shape_for_action_does_not_read_shape_content(monkeypatch: Any) -> None:
@@ -53,3 +69,124 @@ def test_envelope_with_routing_fields_validates(example_action_crate: Dict[str, 
 
     valid, err = validate_structure(envelope)
     assert valid, f"JSON Schema failed: {err}"
+
+
+def test_register_data_shape_accepts_valid_dataset() -> None:
+    data = {
+        "@context": _CONTENT_CONTEXT,
+        "@graph": [
+            {
+                "@id": "#content",
+                "@type": "Dataset",
+                "name": "XRD Run 42 Results",
+                "identifier": "doi:10.1234/dataset.42",
+                "distribution": {"@id": "#dist-1"},
+            },
+            {
+                "@id": "#dist-1",
+                "@type": "DataDownload",
+                "contentUrl": {"@id": "https://example.org/data/run-42.zip"},
+                "encodingFormat": "application/zip",
+                "sha256": "a" * 64,
+            },
+        ],
+    }
+
+    conforms, report = validate_semantics(data, "shapes/register_data.ttl")
+    assert conforms, f"SHACL failed: {report}"
+
+
+def test_register_data_shape_rejects_dataset_without_distribution() -> None:
+    data = {
+        "@context": _CONTENT_CONTEXT,
+        "@graph": [
+            {
+                "@id": "#content",
+                "@type": "Dataset",
+                "name": "XRD Run 42 Results",
+                "identifier": "doi:10.1234/dataset.42",
+            }
+        ],
+    }
+
+    conforms, report = validate_semantics(data, "shapes/register_data.ttl")
+    assert not conforms
+    assert "distribution" in report
+
+
+def test_update_metadata_shape_accepts_valid_replacement() -> None:
+    data = {
+        "@context": _CONTENT_CONTEXT,
+        "@graph": [
+            {
+                "@id": "#content",
+                "@type": "UpdateAction",
+                "object": {"@id": "https://example.org/datasets/42"},
+                "parameter": [
+                    {"@type": "PropertyValue", "name": "description", "value": "Updated description text"}
+                ],
+            }
+        ],
+    }
+
+    conforms, report = validate_semantics(data, "shapes/update_metadata.ttl")
+    assert conforms, f"SHACL failed: {report}"
+
+
+def test_update_metadata_shape_rejects_disallowed_field_name() -> None:
+    data = {
+        "@context": _CONTENT_CONTEXT,
+        "@graph": [
+            {
+                "@id": "#content",
+                "@type": "UpdateAction",
+                "object": {"@id": "https://example.org/datasets/42"},
+                "parameter": [{"@type": "PropertyValue", "name": "owner", "value": "someone else"}],
+            }
+        ],
+    }
+
+    conforms, report = validate_semantics(data, "shapes/update_metadata.ttl")
+    assert not conforms
+
+
+def test_cancel_job_shape_accepts_valid_correlation_id() -> None:
+    data = {
+        "@context": _CONTENT_CONTEXT,
+        "@graph": [
+            {
+                "@id": "#content",
+                "@type": "Action",
+                "object": {
+                    "@id": "#cancel-target",
+                    "@type": "PropertyValue",
+                    "name": "correlationId",
+                    "value": "pcl-req-00042",
+                },
+            }
+        ],
+    }
+
+    conforms, report = validate_semantics(data, "shapes/cancel_job.ttl")
+    assert conforms, f"SHACL failed: {report}"
+
+
+def test_cancel_job_shape_rejects_invalid_correlation_id() -> None:
+    data = {
+        "@context": _CONTENT_CONTEXT,
+        "@graph": [
+            {
+                "@id": "#content",
+                "@type": "Action",
+                "object": {
+                    "@id": "#cancel-target",
+                    "@type": "PropertyValue",
+                    "name": "correlationId",
+                    "value": "abc",
+                },
+            }
+        ],
+    }
+
+    conforms, report = validate_semantics(data, "shapes/cancel_job.ttl")
+    assert not conforms

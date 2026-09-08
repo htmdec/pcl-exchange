@@ -1,0 +1,52 @@
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <http://schema.org/> .
+@prefix prov:   <http://www.w3.org/ns/prov#> .
+@prefix qudt:   <http://qudt.org/schema/qudt/> .
+@prefix pcl:    <https://w3id.org/pcl-profile/action/v1/terms#> .
+
+###############################################################################
+# Root shape for a cancellation request content entity
+# The target is the correlationId of the original request envelope, not a
+# receiver-local job identifier.
+###############################################################################
+
+pcl:CancelJobShape
+    a sh:NodeShape ;
+    sh:targetClass schema:Action ;
+    sh:property [
+        sh:path schema:object ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:node pcl:CancellationTargetShape ;
+        sh:message "schema:object must identify the correlationId of the request to cancel" ;
+    ] ;
+    sh:property [
+        sh:path schema:description ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Optional reason for cancellation" ;
+    ] .
+
+###############################################################################
+# Cancellation target shape: a correlationId PropertyValue
+###############################################################################
+
+pcl:CancellationTargetShape
+    a sh:NodeShape ;
+    sh:targetClass schema:PropertyValue ;
+    sh:property [
+        sh:path schema:name ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:hasValue "correlationId" ;
+        sh:message "Cancellation target name must be 'correlationId'" ;
+    ] ;
+    sh:property [
+        sh:path schema:value ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[A-Za-z0-9_.:-]{6,128}$" ;
+        sh:message "Cancellation target value must match the envelope correlationId pattern" ;
+    ] .

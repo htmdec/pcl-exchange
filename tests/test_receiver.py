@@ -2,7 +2,7 @@ import copy
 import json
 import uuid
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, List
 
 from jwcrypto import jwk
 
@@ -263,12 +263,17 @@ def test_shacl_skipped_when_signature_invalid(
 
 
 def test_no_shape_for_unmapped_action(
-    key_pair: jwk.JWK, builder_defaults: Dict[str, str], valid_payload_data: Dict[str, Any]
+    key_pair: jwk.JWK,
+    builder_defaults: Dict[str, str],
+    valid_payload_data: Dict[str, Any],
+    monkeypatch: Any,
 ) -> None:
+    """All five v1 actions now have shapes; force the defensive branch via a mocked resolver."""
+    monkeypatch.setattr("pcl_exchange.receiver.get_shape_for_action", lambda action: None)
+
     builder = PCLMessageBuilder(**builder_defaults)
     builder.set_content(**valid_payload_data)
     builder.add_capability("xrd.powder.theta-2theta")
-    builder.set_action_type("cancel_job")
     builder.sign(Signer(private_key=key_pair))
     data = json.loads(builder.build().to_json())
 
@@ -322,6 +327,111 @@ def _build_signed_workflow_crate(key_pair: jwk.JWK) -> Dict[str, Any]:
 
 def test_workflow_launch_action_dispatches_workflow_shape(key_pair: jwk.JWK) -> None:
     data = _build_signed_workflow_crate(key_pair)
+
+    result = parse_and_validate_crate(data, lambda sender_id: key_pair)
+
+    assert result.valid is True
+    assert result.errors == []
+    assert result.shacl_report is not None
+
+
+def _build_signed_action_crate(
+    key_pair: jwk.JWK,
+    action: str,
+    schema_uri: str,
+    content: Dict[str, Any],
+    capabilities: List[str],
+) -> Dict[str, Any]:
+    """Hand-builds a signed envelope for the given action; PCLMessageBuilder only supports request_measurement content."""
+    envelope: Dict[str, Any] = {
+        "@id": "#envelope",
+        "@type": "PCLActionEnvelope",
+        "profile": "https://w3id.org/pcl-profile/action/v1",
+        "identifier": f"urn:uuid:{uuid.uuid4()}",
+        "dateCreated": "2026-01-01T00:00:00Z",
+        "sender": {"@id": "https://ror.org/03yrm5c26"},
+        "receiver": {"@id": "https://ror.org/01bj3aw27"},
+        "schema": schema_uri,
+        "action": action,
+        "contentRef": {"@id": "#content"},
+        "project": "doi:10.1234/project.5678",
+        "sample": "igsn:XYZ12345",
+        "capabilities": capabilities,
+    }
+
+    jws_string = Signer(key_pair).sign(envelope)
+    envelope["authz"] = {"type": "DetachedJWS", "jws": jws_string}
+
+    context = [
+        "https://w3id.org/ro/crate/1.1/context",
+        {
+            "prov": "http://www.w3.org/ns/prov#",
+            "qudt": "http://qudt.org/schema/qudt/",
+            "parameter": "http://schema.org/parameter",
+            "unitText": "http://schema.org/unitText",
+            "sha256": "http://schema.org/sha256",
+        },
+    ]
+    return {"@context": context, "@graph": [envelope, content]}
+
+
+def test_register_data_action_dispatches_register_data_shape(key_pair: jwk.JWK) -> None:
+    """distribution is nested inline, since the receiver only forwards the content node itself to SHACL."""
+    content: Dict[str, Any] = {
+        "@id": "#content",
+        "@type": "Dataset",
+        "name": "XRD Run 42 Results",
+        "identifier": "doi:10.1234/dataset.42",
+        "distribution": {
+            "@type": "DataDownload",
+            "contentUrl": {"@id": "https://example.org/data/run-42.zip"},
+            "encodingFormat": "application/zip",
+            "sha256": "a" * 64,
+        },
+    }
+    data = _build_signed_action_crate(
+        key_pair, "register_data", "https://w3id.org/pcl-schema/register-data/v1.0", content, ["data.register"]
+    )
+
+    result = parse_and_validate_crate(data, lambda sender_id: key_pair)
+
+    assert result.valid is True
+    assert result.errors == []
+    assert result.shacl_report is not None
+
+
+def test_update_metadata_action_dispatches_update_metadata_shape(key_pair: jwk.JWK) -> None:
+    content: Dict[str, Any] = {
+        "@id": "#content",
+        "@type": "UpdateAction",
+        "object": {"@id": "https://example.org/datasets/42"},
+        "parameter": [{"@type": "PropertyValue", "name": "description", "value": "Updated description text"}],
+    }
+    data = _build_signed_action_crate(
+        key_pair, "update_metadata", "https://w3id.org/pcl-schema/update-metadata/v1.0", content, ["data.update"]
+    )
+
+    result = parse_and_validate_crate(data, lambda sender_id: key_pair)
+
+    assert result.valid is True
+    assert result.errors == []
+    assert result.shacl_report is not None
+
+
+def test_cancel_job_action_dispatches_cancel_job_shape(key_pair: jwk.JWK) -> None:
+    content: Dict[str, Any] = {
+        "@id": "#content",
+        "@type": "Action",
+        "object": {
+            "@id": "#cancel-target",
+            "@type": "PropertyValue",
+            "name": "correlationId",
+            "value": "pcl-req-00042",
+        },
+    }
+    data = _build_signed_action_crate(
+        key_pair, "cancel_job", "https://w3id.org/pcl-schema/cancel-job/v1.0", content, ["job.cancel"]
+    )
 
     result = parse_and_validate_crate(data, lambda sender_id: key_pair)
 
