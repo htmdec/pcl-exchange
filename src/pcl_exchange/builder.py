@@ -7,9 +7,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from .crypto import compute_content_digest
 from .models import (
     DEFAULT_SCHEMAS,
+    PCLContentBase,
     PCLMessage,
     PCLEnvelope,
-    PCLActionContent,
     PCLError,
     PCLErrorCode,
     PCLErrorFault,
@@ -26,146 +26,72 @@ _RO_CRATE_CONTEXT: List[Any] = [
         "prov": "http://www.w3.org/ns/prov#",
         "qudt": "http://qudt.org/schema/qudt/",
         "parameter": "http://schema.org/parameter",
-        "unitText": "http://schema.org/unitText"
+        "unitText": "http://schema.org/unitText",
+        "sha256": "http://schema.org/sha256",
+        "generatedAtTime": {
+            "@id": "http://www.w3.org/ns/prov#generatedAtTime",
+            "@type": "http://www.w3.org/2001/XMLSchema#dateTime",
+        },
     }
 ]
 
 
 class PCLMessageBuilder:
-    def __init__(self, sender_id: str, receiver_id: str) -> None:
+    def __init__(self, sender_id: str, receiver_id: str, action_type: str) -> None:
+        if action_type not in ALLOWED_ACTION_TYPES:
+            allowed_values = ", ".join(ALLOWED_ACTION_TYPES)
+            raise ValueError(
+                f"Unsupported action type '{action_type}'. Allowed values: {allowed_values}."
+            )
         self.sender: str = sender_id
         self.receiver: str = receiver_id
+        self.action_type: str = action_type
+        self.schema_uri: str = DEFAULT_SCHEMAS[action_type]
         self.envelope_uuid: str = f"urn:uuid:{uuid.uuid4()}"
         self.creation_timestamp: datetime = datetime.now(timezone.utc)
-        self.payload: Optional[PCLActionContent] = None
-        self.action_type: str = "request_measurement"
-        self.schema_uri: str = DEFAULT_SCHEMAS[self.action_type]
-        self.capabilities: List[str] = []
-        self.project_id: str = "doi:10.1234/placeholder"
-        self.sample_id: str = ""
+        self.payload: Optional[PCLContentBase] = None
+        self._envelope_metadata: Dict[str, Any] = {}
         self.authz: Optional[Dict[str, str]] = None
-        self.respond_to: Optional[str] = None
-        self.correlation_id: Optional[str] = None
-        self.idempotency_key: Optional[str] = None
-        self.ttl: Optional[str] = None
-        self.deadline: Optional[datetime] = None
-        self.priority: Optional[int] = None
-        self.protocol_version: Optional[str] = None
-        self.schema_hash: Optional[Dict[str, str]] = None
         self._sealed: bool = False
 
     def _check_not_sealed(self) -> None:
         if self._sealed:
             raise RuntimeError("Cannot modify builder after sign() has been called.")
         
-    def set_content(
-        self,
-        instrument: str,
-        sample: str,
-        method: str,
-        params: Dict[str, Dict[str, Any]]
-    ) -> PCLMessageBuilder:
+    def set_payload(self, payload: PCLContentBase) -> PCLMessageBuilder:
         self._check_not_sealed()
-        self.sample_id = sample
-        self.payload = PCLActionContent.create(
-            instrument_id=instrument,
-            sample_id=sample,
-            method_id=method,
-            params=params
-        )
+        self.payload = payload
         return self
 
-    def add_capability(self, capability: str) -> PCLMessageBuilder:
+    def set_envelope_metadata(self, **kwargs: Any) -> PCLMessageBuilder:
         self._check_not_sealed()
-        self.capabilities.append(capability)
-        return self
-
-    def set_respond_to(self, respond_to: str) -> PCLMessageBuilder:
-        self._check_not_sealed()
-        self.respond_to = respond_to
-        return self
-
-    def set_correlation_id(self, correlation_id: str) -> PCLMessageBuilder:
-        self._check_not_sealed()
-        self.correlation_id = correlation_id
-        return self
-
-    def set_idempotency_key(self, idempotency_key: str) -> PCLMessageBuilder:
-        self._check_not_sealed()
-        self.idempotency_key = idempotency_key
-        return self
-
-    def set_ttl(self, ttl: str) -> PCLMessageBuilder:
-        self._check_not_sealed()
-        self.ttl = ttl
-        return self
-
-    def set_deadline(self, deadline: datetime) -> PCLMessageBuilder:
-        self._check_not_sealed()
-        self.deadline = deadline
-        return self
-
-    def set_priority(self, priority: int) -> PCLMessageBuilder:
-        self._check_not_sealed()
-        self.priority = priority
-        return self
-
-    def set_protocol_version(self, protocol_version: str) -> PCLMessageBuilder:
-        self._check_not_sealed()
-        self.protocol_version = protocol_version
-        return self
-
-    def set_action_type(self, action_type: str) -> PCLMessageBuilder:
-        self._check_not_sealed()
-        if action_type not in ALLOWED_ACTION_TYPES:
-            allowed_values = ", ".join(ALLOWED_ACTION_TYPES)
-            raise ValueError(
-                f"Unsupported action type '{action_type}'. Allowed values: {allowed_values}."
-            )
-        self.action_type = action_type
-        self.schema_uri = DEFAULT_SCHEMAS[action_type]
-        return self
-
-    def set_schema(
-        self, uri: str, schema_hash: Optional[Dict[str, str]] = None
-    ) -> PCLMessageBuilder:
-        self._check_not_sealed()
-        self.schema_uri = uri
-        self.schema_hash = schema_hash
+        self._envelope_metadata.update(kwargs)
         return self
 
     def _create_envelope_model(self, authz_data: Optional[Dict[str, str]] = None) -> PCLEnvelope:
         """
         Creates the PCLEnvelope model.
         """
+        if self.payload is None:
+            raise RuntimeError("Message payload has not been set. Call set_payload() first.")
+
         content_digest: Optional[Dict[str, Any]] = None
-        if self.payload is not None:
-            payload_data = self.payload.model_dump(mode="json", by_alias=True, exclude_none=True)
-            content_digest = compute_content_digest(payload_data)
+        payload_data = self.payload.model_dump(mode="json", by_alias=True, exclude_none=True)
+        content_digest = compute_content_digest(payload_data)
 
         envelope_data: Dict[str, Any] = {
             "id": "#envelope",
             "sender": self.sender,
             "receiver": self.receiver,
-            "schema": self.schema_uri,
+            "schema_": self.schema_uri,
             "action": self.action_type,
-            "capabilities": self.capabilities,
-            "project": self.project_id,
-            "sample": self.sample_id,
             "identifier": self.envelope_uuid,      # overrides default_factory=uuid
             "date_created": self.creation_timestamp, # overrides default_factory=datetime
-            "contentRef": {"@id": "#content"},
-            "contentDigest": content_digest,
+            "content_ref": {"@id": self.payload.id},
+            "content_digest": content_digest,
             "authz": authz_data,
-            "respondTo": self.respond_to,
-            "correlationId": self.correlation_id,
-            "idempotencyKey": self.idempotency_key,
-            "ttl": self.ttl,
-            "deadline": self.deadline,
-            "priority": self.priority,
-            "protocolVersion": self.protocol_version,
-            "schemaHash": self.schema_hash
         }
+        envelope_data.update(self._envelope_metadata)
         filtered_data = {key: value for key, value in envelope_data.items() if value is not None}
 
         return PCLEnvelope(**filtered_data)
@@ -174,7 +100,7 @@ class PCLMessageBuilder:
         if self._sealed:
             raise RuntimeError("Cannot call sign() more than once for the same builder.")
         if self.payload is None:
-            raise RuntimeError("Message content has not been set. Call set_content() before signing.")
+            raise RuntimeError("Message payload has not been set. Call set_payload() before signing.")
 
         temp_envelope = self._create_envelope_model(authz_data=None)
         envelope_data = temp_envelope.model_dump(
@@ -194,13 +120,13 @@ class PCLMessageBuilder:
     def build(self) -> PCLMessage:
         """Finalizes the message construction and returns a PCLMessage instance."""
         if not self.payload:
-            raise ValueError("Message content has not been set. Call set_content() before building.")
+            raise ValueError("Message payload has not been set. Call set_payload() before building.")
 
         envelope = self._create_envelope_model(authz_data=self.authz)
         
         graph_items = [
             ROCrateMetadata(),
-            ROCrateRoot(),
+            ROCrateRoot(hasPart=[{"@id": "#envelope"}, {"@id": self.payload.id}]),
             envelope,
             self.payload
         ]
@@ -246,15 +172,15 @@ def build_nack(
     faults: Optional[List[PCLErrorFault]] = None,
 ) -> Tuple[PCLEnvelope, PCLError]:
     """Builds an unsigned nack PCLEnvelope plus its PCLError content, in response to `envelope`."""
-    nack_envelope = _build_response_envelope(envelope, action="nack", content_ref={"@id": "#error"})
+    correlation_id = envelope.correlation_id or envelope.identifier
     error = PCLError(
-        id="#error",
         code=code,
         reason=reason,
-        correlation_id=nack_envelope.correlation_id,
-        idempotency_key=nack_envelope.idempotency_key,
+        correlation_id=correlation_id,
+        idempotency_key=envelope.idempotency_key,
         faults=faults,
     )
+    nack_envelope = _build_response_envelope(envelope, action="nack", content_ref={"@id": error.id})
     return nack_envelope, error
 
 

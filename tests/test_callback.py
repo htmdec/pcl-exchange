@@ -6,13 +6,24 @@ from pytest_httpserver import HTTPServer
 
 from pcl_exchange.builder import PCLMessageBuilder, build_ack, build_nack
 from pcl_exchange.callback import CallbackClient
-from pcl_exchange.models import PCLEnvelope, PCLErrorCode
+from pcl_exchange.models import PCLEnvelope, PCLErrorCode, PCLMeasurementRequestContent
 
 
-def _build_original_envelope(builder_defaults: Dict[str, str], valid_payload_data: Dict[str, Any]) -> PCLEnvelope:
+def _build_original_envelope(
+    builder_defaults: Dict[str, str],
+    valid_payload_data: Dict[str, Any],
+    request_envelope_metadata: Dict[str, Any],
+) -> PCLEnvelope:
     builder = PCLMessageBuilder(**builder_defaults)
-    builder.set_content(**valid_payload_data)
-    builder.add_capability("xrd.powder.theta-2theta")
+    builder.set_payload(
+        PCLMeasurementRequestContent.create(
+            instrument_ref={"@id": valid_payload_data["instrument"]},
+            sample_ref={"@id": valid_payload_data["sample"]},
+            method_ref={"@id": valid_payload_data["method"]},
+            params=valid_payload_data["params"],
+        )
+    )
+    builder.set_envelope_metadata(**request_envelope_metadata)
     message = builder.build()
     return next(item for item in message.graph if isinstance(item, PCLEnvelope))
 
@@ -28,8 +39,9 @@ def test_send_ack_posts_expected_body_and_headers(
     httpserver: HTTPServer,
     builder_defaults: Dict[str, str],
     valid_payload_data: Dict[str, Any],
+    request_envelope_metadata: Dict[str, Any],
 ) -> None:
-    original = _build_original_envelope(builder_defaults, valid_payload_data)
+    original = _build_original_envelope(builder_defaults, valid_payload_data, request_envelope_metadata)
     ack = build_ack(original, job_id="job-12345678")
     httpserver.expect_request("/hooks/ack", method="POST").respond_with_data("", status=200)
 
@@ -51,8 +63,9 @@ def test_send_nack_posts_envelope_and_error_nodes(
     httpserver: HTTPServer,
     builder_defaults: Dict[str, str],
     valid_payload_data: Dict[str, Any],
+    request_envelope_metadata: Dict[str, Any],
 ) -> None:
-    original = _build_original_envelope(builder_defaults, valid_payload_data)
+    original = _build_original_envelope(builder_defaults, valid_payload_data, request_envelope_metadata)
     nack_envelope, error = build_nack(original, code=PCLErrorCode.SCHEMA_MISMATCH, reason="bad envelope")
     httpserver.expect_request("/hooks/nack", method="POST").respond_with_data("", status=200)
 
@@ -70,8 +83,9 @@ def test_transient_status_retries_then_succeeds(
     httpserver: HTTPServer,
     builder_defaults: Dict[str, str],
     valid_payload_data: Dict[str, Any],
+    request_envelope_metadata: Dict[str, Any],
 ) -> None:
-    original = _build_original_envelope(builder_defaults, valid_payload_data)
+    original = _build_original_envelope(builder_defaults, valid_payload_data, request_envelope_metadata)
     ack = build_ack(original)
     httpserver.expect_ordered_request("/hooks/ack", method="POST").respond_with_data("", status=503)
     httpserver.expect_ordered_request("/hooks/ack", method="POST").respond_with_data("", status=503)
@@ -88,8 +102,9 @@ def test_transient_status_exhausts_retries_maps_to_temporary_failure(
     httpserver: HTTPServer,
     builder_defaults: Dict[str, str],
     valid_payload_data: Dict[str, Any],
+    request_envelope_metadata: Dict[str, Any],
 ) -> None:
-    original = _build_original_envelope(builder_defaults, valid_payload_data)
+    original = _build_original_envelope(builder_defaults, valid_payload_data, request_envelope_metadata)
     ack = build_ack(original)
     httpserver.expect_request("/hooks/ack", method="POST").respond_with_data("", status=503)
 
@@ -107,8 +122,9 @@ def test_non_transient_status_fails_fast_as_internal_error(
     httpserver: HTTPServer,
     builder_defaults: Dict[str, str],
     valid_payload_data: Dict[str, Any],
+    request_envelope_metadata: Dict[str, Any],
 ) -> None:
-    original = _build_original_envelope(builder_defaults, valid_payload_data)
+    original = _build_original_envelope(builder_defaults, valid_payload_data, request_envelope_metadata)
     ack = build_ack(original)
     httpserver.expect_request("/hooks/ack", method="POST").respond_with_data("", status=400)
 
@@ -126,8 +142,9 @@ def test_non_transient_status_fails_fast_as_internal_error(
 def test_connection_error_exhausts_retries_maps_to_temporary_failure(
     builder_defaults: Dict[str, str],
     valid_payload_data: Dict[str, Any],
+    request_envelope_metadata: Dict[str, Any],
 ) -> None:
-    original = _build_original_envelope(builder_defaults, valid_payload_data)
+    original = _build_original_envelope(builder_defaults, valid_payload_data, request_envelope_metadata)
     ack = build_ack(original)
     unreachable_url = f"http://127.0.0.1:{_unused_port()}/hooks/ack"
 

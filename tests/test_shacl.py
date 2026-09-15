@@ -2,6 +2,7 @@ import json
 from pcl_exchange.builder import PCLMessageBuilder
 from pcl_exchange.validation import validate_semantics, validate_structure
 from pcl_exchange.crypto import Signer
+from pcl_exchange.models import PCLMeasurementRequestContent
 
 
 def test_generated_json_passes_shacl(builder_defaults, valid_payload_data, key_pair):
@@ -12,8 +13,19 @@ def test_generated_json_passes_shacl(builder_defaults, valid_payload_data, key_p
     3. SHACL Validator checks graph semantics
     """
     builder = PCLMessageBuilder(**builder_defaults)
-    builder.set_content(**valid_payload_data)
-    builder.add_capability("xrd.powder.theta-2theta")
+    builder.set_payload(
+        PCLMeasurementRequestContent.create(
+            instrument_ref={"@id": valid_payload_data["instrument"]},
+            sample_ref={"@id": valid_payload_data["sample"]},
+            method_ref={"@id": valid_payload_data["method"]},
+            params=valid_payload_data["params"],
+        )
+    )
+    builder.set_envelope_metadata(
+        project="doi:10.5072/project.0001",
+        sample=valid_payload_data["sample"],
+        capabilities=["xrd.powder.theta-2theta"],
+    )
     builder.sign(Signer(key_pair))
     
     message = builder.build()
@@ -34,7 +46,19 @@ def test_invalid_structure_fails_shacl(builder_defaults, valid_payload_data):
     Test that SHACL correctly catches a missing mandatory field.
     """
     builder = PCLMessageBuilder(**builder_defaults)
-    builder.set_content(**valid_payload_data)
+    builder.set_payload(
+        PCLMeasurementRequestContent.create(
+            instrument_ref={"@id": valid_payload_data["instrument"]},
+            sample_ref={"@id": valid_payload_data["sample"]},
+            method_ref={"@id": valid_payload_data["method"]},
+            params=valid_payload_data["params"],
+        )
+    )
+    builder.set_envelope_metadata(
+        project="doi:10.5072/project.0001",
+        sample=valid_payload_data["sample"],
+        capabilities=["xrd.powder.theta-2theta"],
+    )
     message = builder.build()
     
     # break the structure by removing a required field

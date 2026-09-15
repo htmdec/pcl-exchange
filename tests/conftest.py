@@ -44,7 +44,17 @@ def valid_payload_data() -> Dict[str, Any]:
 def builder_defaults() -> Dict[str, str]:
     return {
         "sender_id": MOCK_SENDER_ROR,
-        "receiver_id": MOCK_RECEIVER_ROR
+        "receiver_id": MOCK_RECEIVER_ROR,
+        "action_type": "request_measurement",
+    }
+
+
+@pytest.fixture
+def request_envelope_metadata() -> Dict[str, Any]:
+    return {
+        "project": MOCK_PROJECT_DOI,
+        "sample": MOCK_SAMPLE_IGSN,
+        "capabilities": ["xrd.powder.theta-2theta"],
     }
 
 
