@@ -9,6 +9,7 @@ from jwcrypto import jwk
 from conftest import MOCK_DATASET_DOI, MOCK_PROJECT_DOI, MOCK_RECEIVER_ROR, MOCK_SAMPLE_IGSN, MOCK_SENDER_ROR
 from pcl_exchange.builder import PCLMessageBuilder
 from pcl_exchange.crypto import Signer
+from pcl_exchange.models import PCLMeasurementRequestContent
 from pcl_exchange.receiver import parse_and_validate_crate
 
 
@@ -109,6 +110,48 @@ def test_invalid_json_string() -> None:
     assert [e.code for e in result.errors] == ["INVALID_JSON"]
 
 
+def test_missing_path_raises_invalid_json() -> None:
+    result = parse_and_validate_crate(Path("does-not-exist.json"), _never_called)
+
+    assert result.valid is False
+    assert result.envelope is None
+    assert [e.code for e in result.errors] == ["INVALID_JSON"]
+
+
+def test_generic_sender_resolution_error_is_reported() -> None:
+    def _resolver(sender_id: str) -> jwk.JWK:
+        raise KeyError(sender_id)
+
+    result = parse_and_validate_crate(
+        {
+            "@context": ["https://w3id.org/ro/crate/1.1/context"],
+            "@graph": [
+                {
+                    "@id": "#envelope",
+                    "@type": "PCLActionEnvelope",
+                    "profile": "https://w3id.org/pcl-profile/action/v1",
+                    "identifier": "urn:uuid:123",
+                    "dateCreated": "2026-01-01T00:00:00Z",
+                    "sender": {"@id": "https://example.org/sender"},
+                    "receiver": {"@id": "https://example.org/receiver"},
+                    "schema": "https://w3id.org/pcl-schema/request-measurement/v1.0",
+                    "action": "request_measurement",
+                    "contentRef": {"@id": "#content"},
+                    "project": MOCK_PROJECT_DOI,
+                    "sample": MOCK_SAMPLE_IGSN,
+                    "capabilities": ["xrd.powder.theta-2theta"],
+                    "authz": {"type": "DetachedJWS", "jws": "abc"},
+                },
+                {"@id": "#content", "@type": "Dataset", "name": "Example"},
+            ],
+        },
+        _resolver,
+    )
+
+    assert result.valid is False
+    assert [e.code for e in result.errors] == ["UNKNOWN_SENDER_KEY"]
+
+
 def test_missing_graph_key() -> None:
     result = parse_and_validate_crate({"@context": "https://w3id.org/ro/crate/1.1/context"}, _never_called)
 
@@ -121,8 +164,19 @@ def _build_signed_crate(
     key_pair: jwk.JWK, builder_defaults: Dict[str, str], valid_payload_data: Dict[str, Any]
 ) -> Dict[str, Any]:
     builder = PCLMessageBuilder(**builder_defaults)
-    builder.set_content(**valid_payload_data)
-    builder.add_capability("xrd.powder.theta-2theta")
+    builder.set_payload(
+        PCLMeasurementRequestContent.create(
+            instrument_ref={"@id": valid_payload_data["instrument"]},
+            sample_ref={"@id": valid_payload_data["sample"]},
+            method_ref={"@id": valid_payload_data["method"]},
+            params=valid_payload_data["params"],
+        )
+    )
+    builder.set_envelope_metadata(
+        project=MOCK_PROJECT_DOI,
+        sample=MOCK_SAMPLE_IGSN,
+        capabilities=["xrd.powder.theta-2theta"],
+    )
     builder.sign(Signer(private_key=key_pair))
     return json.loads(builder.build().to_json())
 
@@ -275,8 +329,19 @@ def test_no_shape_for_unmapped_action(
     monkeypatch.setattr("pcl_exchange.receiver.get_shape_for_action", lambda action: None)
 
     builder = PCLMessageBuilder(**builder_defaults)
-    builder.set_content(**valid_payload_data)
-    builder.add_capability("xrd.powder.theta-2theta")
+    builder.set_payload(
+        PCLMeasurementRequestContent.create(
+            instrument_ref={"@id": valid_payload_data["instrument"]},
+            sample_ref={"@id": valid_payload_data["sample"]},
+            method_ref={"@id": valid_payload_data["method"]},
+            params=valid_payload_data["params"],
+        )
+    )
+    builder.set_envelope_metadata(
+        project=MOCK_PROJECT_DOI,
+        sample=MOCK_SAMPLE_IGSN,
+        capabilities=["xrd.powder.theta-2theta"],
+    )
     builder.sign(Signer(private_key=key_pair))
     data = json.loads(builder.build().to_json())
 
