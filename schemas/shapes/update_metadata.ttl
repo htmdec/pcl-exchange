@@ -22,6 +22,13 @@ pcl:MetadataUpdateShape
         sh:message "schema:object must be the IRI of the resource being updated" ;
     ] ;
     sh:property [
+        sh:path prov:wasAttributedTo ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "Updates must declare the origin laboratory (ROR) or researcher (ORCID) for authorization" ;
+    ] ;
+    sh:property [
         sh:path schema:parameter ;
         sh:minCount 1 ;
         sh:node pcl:MetadataFieldShape ;
@@ -47,5 +54,12 @@ pcl:MetadataFieldShape
         sh:path schema:value ;
         sh:minCount 1 ;
         sh:maxCount 1 ;
-        sh:message "Field must have a replacement value" ;
+        sh:or (
+            [ sh:datatype xsd:string ]
+            [ sh:datatype xsd:integer ]
+            [ sh:datatype xsd:decimal ]
+            [ sh:datatype xsd:boolean ]
+            [ sh:nodeKind sh:IRI ]
+        ) ;
+        sh:message "Field must have a replacement value of type string, number, boolean, or IRI" ;
     ] .

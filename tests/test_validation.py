@@ -2,6 +2,7 @@ import copy
 from typing import Any, Dict, List
 
 import pcl_exchange.validation as validation
+from conftest import MOCK_DATASET_DOI, MOCK_PROJECT_DOI, MOCK_SAMPLE_IGSN, MOCK_SENDER_ROR
 from pcl_exchange.validation import get_shape_for_action, validate_semantics, validate_structure
 
 # Shared JSON-LD context for standalone content-node SHACL fixtures below.
@@ -14,6 +15,10 @@ _CONTENT_CONTEXT: List[Any] = [
         "parameter": "http://schema.org/parameter",
         "unitText": "http://schema.org/unitText",
         "sha256": "http://schema.org/sha256",
+        "generatedAtTime": {
+            "@id": "http://www.w3.org/ns/prov#generatedAtTime",
+            "@type": "http://www.w3.org/2001/XMLSchema#dateTime",
+        },
     },
 ]
 
@@ -79,7 +84,11 @@ def test_register_data_shape_accepts_valid_dataset() -> None:
                 "@id": "#content",
                 "@type": "Dataset",
                 "name": "XRD Run 42 Results",
-                "identifier": "doi:10.1234/dataset.42",
+                "identifier": MOCK_DATASET_DOI,
+                "isPartOf": {"identifier": MOCK_PROJECT_DOI},
+                "about": {"identifier": MOCK_SAMPLE_IGSN},
+                "prov:wasAttributedTo": {"@id": MOCK_SENDER_ROR},
+                "generatedAtTime": "2026-01-01T00:00:00Z",
                 "distribution": {"@id": "#dist-1"},
             },
             {
@@ -104,7 +113,11 @@ def test_register_data_shape_rejects_dataset_without_distribution() -> None:
                 "@id": "#content",
                 "@type": "Dataset",
                 "name": "XRD Run 42 Results",
-                "identifier": "doi:10.1234/dataset.42",
+                "identifier": MOCK_DATASET_DOI,
+                "isPartOf": {"identifier": MOCK_PROJECT_DOI},
+                "about": {"identifier": MOCK_SAMPLE_IGSN},
+                "prov:wasAttributedTo": {"@id": MOCK_SENDER_ROR},
+                "generatedAtTime": "2026-01-01T00:00:00Z",
             }
         ],
     }
@@ -122,6 +135,7 @@ def test_update_metadata_shape_accepts_valid_replacement() -> None:
                 "@id": "#content",
                 "@type": "UpdateAction",
                 "object": {"@id": "https://example.org/datasets/42"},
+                "prov:wasAttributedTo": {"@id": MOCK_SENDER_ROR},
                 "parameter": [
                     {"@type": "PropertyValue", "name": "description", "value": "Updated description text"}
                 ],
@@ -141,6 +155,7 @@ def test_update_metadata_shape_rejects_disallowed_field_name() -> None:
                 "@id": "#content",
                 "@type": "UpdateAction",
                 "object": {"@id": "https://example.org/datasets/42"},
+                "prov:wasAttributedTo": {"@id": MOCK_SENDER_ROR},
                 "parameter": [{"@type": "PropertyValue", "name": "owner", "value": "someone else"}],
             }
         ],
@@ -163,6 +178,7 @@ def test_cancel_job_shape_accepts_valid_correlation_id() -> None:
                     "name": "correlationId",
                     "value": "pcl-req-00042",
                 },
+                "prov:wasAttributedTo": {"@id": MOCK_SENDER_ROR},
             }
         ],
     }
@@ -184,6 +200,7 @@ def test_cancel_job_shape_rejects_invalid_correlation_id() -> None:
                     "name": "correlationId",
                     "value": "abc",
                 },
+                "prov:wasAttributedTo": {"@id": MOCK_SENDER_ROR},
             }
         ],
     }

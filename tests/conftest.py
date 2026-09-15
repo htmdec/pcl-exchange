@@ -5,6 +5,18 @@ from typing import Any, Dict
 import pytest
 from jwcrypto import jwk
 
+# Mock persistent identifiers shared across test fixtures. Never resolve to real
+# institutions/people/records, but still satisfy the ROR/ORCID/DOI/IGSN patterns
+# enforced by schemas/envelope.json and the SHACL shapes.
+MOCK_SENDER_ROR = "https://ror.org/0sndfake1"
+MOCK_RECEIVER_ROR = "https://ror.org/0rcvfake1"
+MOCK_ORCID = "https://orcid.org/0000-0000-0000-0000"
+MOCK_PROJECT_DOI = "doi:10.5072/project.0001"
+MOCK_DATASET_DOI = "doi:10.5072/dataset.0001"
+MOCK_SAMPLE_IGSN = "igsn:JHABOX00000"
+MOCK_TAMPERED_ROR = "https://ror.org/000000000"
+
+
 @pytest.fixture(scope="session")
 def key_pair() -> jwk.JWK:
     """
@@ -20,7 +32,7 @@ def valid_payload_data() -> Dict[str, Any]:
     """
     return {
         "instrument": "urn:aimd:instrument:proto-xrd-01",
-        "sample": "igsn:XYZ12345",
+        "sample": MOCK_SAMPLE_IGSN,
         "method": "urn:aimd:method:xrd:powder:theta-2theta:v1",
         "params": {
             "scan_range": {"val": "10 90", "unit": "deg 2theta"},
@@ -31,8 +43,8 @@ def valid_payload_data() -> Dict[str, Any]:
 @pytest.fixture
 def builder_defaults() -> Dict[str, str]:
     return {
-        "sender_id": "https://ror.org/03yrm5c26",
-        "receiver_id": "https://ror.org/01bj3aw27"
+        "sender_id": MOCK_SENDER_ROR,
+        "receiver_id": MOCK_RECEIVER_ROR
     }
 
 

@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, List
 
 from jwcrypto import jwk
 
+from conftest import MOCK_DATASET_DOI, MOCK_PROJECT_DOI, MOCK_RECEIVER_ROR, MOCK_SAMPLE_IGSN, MOCK_SENDER_ROR
 from pcl_exchange.builder import PCLMessageBuilder
 from pcl_exchange.crypto import Signer
 from pcl_exchange.receiver import parse_and_validate_crate
@@ -16,6 +17,8 @@ def _never_called(sender_id: str) -> jwk.JWK:
 
 
 def _example_resolver(example_sender_public_key: jwk.JWK) -> Callable[[str], jwk.JWK]:
+    # NOTE: this ROR is baked into the pre-signed examples/pcl_action_crate_example.json
+    # bytes; it can't be swapped for a mock constant without invalidating that signature.
     def _resolve(sender_id: str) -> jwk.JWK:
         if sender_id != "https://ror.org/03yrm5c26":
             raise LookupError(sender_id)
@@ -300,13 +303,13 @@ def _build_signed_workflow_crate(key_pair: jwk.JWK) -> Dict[str, Any]:
         "profile": "https://w3id.org/pcl-profile/action/v1",
         "identifier": f"urn:uuid:{uuid.uuid4()}",
         "dateCreated": "2026-01-01T00:00:00Z",
-        "sender": {"@id": "https://ror.org/03yrm5c26"},
-        "receiver": {"@id": "https://ror.org/01bj3aw27"},
+        "sender": {"@id": MOCK_SENDER_ROR},
+        "receiver": {"@id": MOCK_RECEIVER_ROR},
         "schema": "https://w3id.org/pcl-schema/launch-workflow/v1.0",
         "action": "launch_workflow",
         "contentRef": {"@id": "#content"},
-        "project": "doi:10.1234/project.5678",
-        "sample": "igsn:XYZ12345",
+        "project": MOCK_PROJECT_DOI,
+        "sample": MOCK_SAMPLE_IGSN,
         "capabilities": ["workflow.cwl.launch"],
     }
 
@@ -349,13 +352,13 @@ def _build_signed_action_crate(
         "profile": "https://w3id.org/pcl-profile/action/v1",
         "identifier": f"urn:uuid:{uuid.uuid4()}",
         "dateCreated": "2026-01-01T00:00:00Z",
-        "sender": {"@id": "https://ror.org/03yrm5c26"},
-        "receiver": {"@id": "https://ror.org/01bj3aw27"},
+        "sender": {"@id": MOCK_SENDER_ROR},
+        "receiver": {"@id": MOCK_RECEIVER_ROR},
         "schema": schema_uri,
         "action": action,
         "contentRef": {"@id": "#content"},
-        "project": "doi:10.1234/project.5678",
-        "sample": "igsn:XYZ12345",
+        "project": MOCK_PROJECT_DOI,
+        "sample": MOCK_SAMPLE_IGSN,
         "capabilities": capabilities,
     }
 
@@ -370,6 +373,10 @@ def _build_signed_action_crate(
             "parameter": "http://schema.org/parameter",
             "unitText": "http://schema.org/unitText",
             "sha256": "http://schema.org/sha256",
+            "generatedAtTime": {
+                "@id": "http://www.w3.org/ns/prov#generatedAtTime",
+                "@type": "http://www.w3.org/2001/XMLSchema#dateTime",
+            },
         },
     ]
     return {"@context": context, "@graph": [envelope, content]}
@@ -381,7 +388,11 @@ def test_register_data_action_dispatches_register_data_shape(key_pair: jwk.JWK) 
         "@id": "#content",
         "@type": "Dataset",
         "name": "XRD Run 42 Results",
-        "identifier": "doi:10.1234/dataset.42",
+        "identifier": MOCK_DATASET_DOI,
+        "isPartOf": {"identifier": MOCK_PROJECT_DOI},
+        "about": {"identifier": MOCK_SAMPLE_IGSN},
+        "prov:wasAttributedTo": {"@id": MOCK_SENDER_ROR},
+        "generatedAtTime": "2026-01-01T00:00:00Z",
         "distribution": {
             "@type": "DataDownload",
             "contentUrl": {"@id": "https://example.org/data/run-42.zip"},
@@ -405,6 +416,7 @@ def test_update_metadata_action_dispatches_update_metadata_shape(key_pair: jwk.J
         "@id": "#content",
         "@type": "UpdateAction",
         "object": {"@id": "https://example.org/datasets/42"},
+        "prov:wasAttributedTo": {"@id": MOCK_SENDER_ROR},
         "parameter": [{"@type": "PropertyValue", "name": "description", "value": "Updated description text"}],
     }
     data = _build_signed_action_crate(
@@ -428,6 +440,7 @@ def test_cancel_job_action_dispatches_cancel_job_shape(key_pair: jwk.JWK) -> Non
             "name": "correlationId",
             "value": "pcl-req-00042",
         },
+        "prov:wasAttributedTo": {"@id": MOCK_SENDER_ROR},
     }
     data = _build_signed_action_crate(
         key_pair, "cancel_job", "https://w3id.org/pcl-schema/cancel-job/v1.0", content, ["job.cancel"]
