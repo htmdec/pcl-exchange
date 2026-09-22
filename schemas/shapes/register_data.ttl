@@ -1,0 +1,109 @@
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <http://schema.org/> .
+@prefix prov:   <http://www.w3.org/ns/prov#> .
+@prefix qudt:   <http://qudt.org/schema/qudt/> .
+@prefix odrl:   <http://www.w3.org/ns/odrl/2/> .
+@prefix pcl:    <https://w3id.org/pcl-profile/action/v1/terms#> .
+
+###############################################################################
+# Root shape for a data registration content entity
+###############################################################################
+
+pcl:DataRegistrationShape
+    a sh:NodeShape ;
+    sh:targetClass schema:Dataset ;
+    sh:property [
+        sh:path schema:name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Dataset must have a name" ;
+    ] ;
+    sh:property [
+        sh:path schema:identifier ;
+        sh:minCount 1 ;
+        sh:message "Dataset must have an identifier (for example a DOI or IGSN)" ;
+    ] ;
+    sh:property [
+        sh:path schema:isPartOf ;
+        sh:minCount 1 ;
+        sh:node pcl:DOIIdentifierShape ;
+        sh:message "Dataset must reference the parent project PID (e.g., DOI or RAiD)" ;
+    ] ;
+    sh:property [
+        sh:path schema:about ;
+        sh:minCount 1 ;
+        sh:node pcl:IGSNIdentifierShape ;
+        sh:message "Dataset must reference the physical sample (IGSN) it describes" ;
+    ] ;
+    sh:property [
+        sh:path prov:wasAttributedTo ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "Must declare the origin laboratory (ROR) or researcher (ORCID)" ;
+    ] ;
+    sh:property [
+        sh:path prov:generatedAtTime ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:dateTime ;
+        sh:message "Optional timestamp of dataset creation" ;
+    ] ;
+    sh:property [
+        sh:path odrl:hasPolicy ;
+        sh:nodeKind sh:IRI ;
+        sh:message "Optional ODRL policy defining data use constraints and privacy limits" ;
+    ] ;
+    sh:property [
+        sh:path schema:distribution ;
+        sh:minCount 1 ;
+        sh:node pcl:DataDistributionShape ;
+        sh:message "Dataset must declare at least one retrievable distribution" ;
+    ] .
+
+###############################################################################
+# Distribution shape: the retrievable, checksummed artifact being registered
+###############################################################################
+
+pcl:DataDistributionShape
+    a sh:NodeShape ;
+    sh:targetClass schema:DataDownload ;
+    sh:property [
+        sh:path schema:contentUrl ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "Distribution must be retrievable from a contentUrl" ;
+    ] ;
+    sh:property [
+        sh:path schema:encodingFormat ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Distribution must declare a media type, for example application/json" ;
+    ] ;
+    sh:property [
+        sh:path schema:sha256 ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[A-Fa-f0-9]{64}$" ;
+        sh:message "Distribution must include a SHA-256 checksum" ;
+    ] .
+
+###############################################################################
+# Identifier helper shapes
+###############################################################################
+
+pcl:IGSNIdentifierShape
+    a sh:NodeShape ;
+    sh:property [
+        sh:path [ sh:alternativePath ( schema:identifier schema:sameAs ) ] ;
+        sh:minCount 1 ;
+        sh:pattern "^igsn:[A-Za-z0-9./:-]{5,}$" ;
+    ] .
+
+pcl:DOIIdentifierShape
+    a sh:NodeShape ;
+    sh:property [
+        sh:path [ sh:alternativePath ( schema:identifier schema:sameAs ) ] ;
+        sh:minCount 1 ;
+        sh:pattern "^doi:10\\.[0-9]{4,9}/\\S+$" ;
+    ] .

@@ -3,10 +3,21 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "PCLError",
   "type": "object",
-  "required": ["type", "timestamp", "code", "reason"],
+  "anyOf": [
+    { "required": ["@type", "timestamp", "code", "reason"] },
+    { "required": ["type", "timestamp", "code", "reason"] }
+  ],
   "additionalProperties": false,
   "properties": {
+    "@id": {
+      "type": "string",
+      "description": "Optional JSON-LD node identifier, for linking from an envelope's contentRef"
+    },
     "type": {
+      "type": "string",
+      "const": "https://w3id.org/pcl-profile/action/v1#Error"
+    },
+    "@type": {
       "type": "string",
       "const": "https://w3id.org/pcl-profile/action/v1#Error"
     },

@@ -19,27 +19,34 @@
       },
       "about": {
         "@id": "./"
+      },
+      "encodingFormat": "application/json",
+      "contentUrl": {
+        "@id": "https://example.org/ro-crate-metadata.json"
       }
     },
     {
       "@id": "./",
       "@type": "Dataset",
-      "name": "PCL Action Crate",
+      "name": "PCL Workflow Launch Crate",
       "hasPart": [
         {
           "@id": "#envelope"
         },
         {
           "@id": "#content"
+        },
+        {
+          "@id": "#wf-descriptor"
         }
       ],
-      "identifier": "urn:uuid:1c6b3e2f-7b1a-4c2e-9f3a-1a2b3c4d5e6f"
+      "identifier": "urn:uuid:77dfadca-f5a0-40f9-a95d-59fbe12c3c73"
     },
     {
       "@id": "#envelope",
       "@type": "PCLActionEnvelope",
       "profile": "https://w3id.org/pcl-profile/action/v1",
-      "identifier": "urn:uuid:1c6b3e2f-7b1a-4c2e-9f3a-1a2b3c4d5e6f",
+      "identifier": "urn:uuid:77dfadca-f5a0-40f9-a95d-59fbe12c3c73",
       "dateCreated": "2025-10-25T08:15:30Z",
       "sender": {
         "@id": "https://ror.org/03yrm5c26"
@@ -47,68 +54,80 @@
       "receiver": {
         "@id": "https://ror.org/01bj3aw27"
       },
-      "schema": "https://w3id.org/pcl-schema/measure-request/v1.0",
+      "schema": "https://w3id.org/pcl-schema/workflow-launch/v1.0",
       "contentRef": {
         "@id": "#content"
       },
-      "action": "request_measurement",
+      "action": "launch_workflow",
       "capabilities": [
-        "xrd.powder.theta-2theta"
+        "workflow.cwl.launch"
       ],
       "project": "doi:10.1234/project.5678",
       "sample": "igsn:XYZ12345",
+      "authz": {
+        "@id": "#vp"
+      },
       "respondTo": "https://aimd-l.example.org/hooks/status",
       "ttl": "PT10M",
-      "correlationId": "pcl-req-00042",
-      "idempotencyKey": "pcl-req-00042-v1",
-      "authz": {
-        "type": "DetachedJWS",
-        "jws": "eyJhbGciOiJFZERTQSJ9..6KBygFfzxegMmK3slZSrB1W90oy-oV6lwxtD4V4Rwo5nU2mwPQdvBud0mPlNAozEibweOgHdqEIu9Pdx1ciAAw"
-      }
+      "correlationId": "pcl-req-10001",
+      "idempotencyKey": "pcl-req-10001-v1"
     },
     {
       "@id": "#content",
-      "@type": "Action",
-      "instrument": {
-        "@id": "urn:aimd:instrument:proto-xrd-01"
-      },
-      "object": {
-        "@id": "igsn:XYZ12345"
-      },
-      "prov:wasAttributedTo": {
-        "@id": "https://orcid.org/0000-0002-1825-0097"
-      },
-      "prov:used": {
-        "@id": "#method"
-      },
-      "expectsAcceptanceCriteria": {
-        "@id": "#criteria"
-      },
+      "@type": "SoftwareSourceCode",
+      "name": "Powder XRD Workflow",
+      "programmingLanguage": "CWL v1.2",
+      "hasPart": [
+        {
+          "@id": "#wf-descriptor"
+        }
+      ],
       "parameter": [
         {
           "@type": "PropertyValue",
           "name": "scan_range",
           "value": "10 90",
-          "unitText": "deg 2θ"
-        },
-        {
-          "@type": "PropertyValue",
-          "name": "step",
-          "value": 0.02,
-          "unitText": "deg"
+          "unitText": "deg 2theta"
         }
-      ]
+      ],
+      "object": {
+        "@id": "https://example.org/sample/XYZ12345"
+      },
+      "isPartOf": {
+        "@id": "https://doi.org/10.1234/project.5678"
+      },
+      "result": {
+        "@id": "#expected"
+      }
     },
     {
-      "@id": "#method",
+      "@id": "#wf-descriptor",
       "@type": "CreativeWork",
-      "name": "Powder XRD theta–2theta",
-      "identifier": "urn:aimd:method:xrd:powder:theta-2theta:v1"
+      "name": "main.cwl",
+      "encodingFormat": "application/cwl",
+      "contentUrl": {
+        "@id": "https://example.org/workflows/main.cwl"
+      },
+      "sha256": "7f83b1657ff1fc53b92dc18148a1d65dfa13514a0a9e8f5f6c1f4a36f0f5f6a1",
+      "about": {
+        "@id": "#content"
+      }
     },
     {
-      "@id": "#criteria",
+      "@id": "#expected",
       "@type": "CreativeWork",
-      "text": "SNR ≥ 20 at peak near 2θ=28 deg; max dose 1 mC."
+      "about": {
+        "@id": "#content"
+      },
+      "distribution": [
+        {
+          "@id": "https://example.org/results/xrd-pattern.cif"
+        }
+      ],
+      "encodingFormat": "application/json",
+      "contentUrl": {
+        "@id": "https://example.org/results/schema.json"
+      }
     },
     {
       "@id": "#vp",
@@ -116,11 +135,6 @@
       "odrl:hasPolicy": [
         {
           "@id": "#policy"
-        }
-      ],
-      "duo:hasDataUsePermission": [
-        {
-          "@id": "duo:0000006"
         }
       ]
     },
@@ -130,13 +144,6 @@
       "odrl:permission": [
         {
           "odrl:action": "use"
-        }
-      ],
-      "odrl:constraint": [
-        {
-          "odrl:leftOperand": "purpose",
-          "odrl:operator": "eq",
-          "odrl:rightOperand": "materials-research"
         }
       ]
     }

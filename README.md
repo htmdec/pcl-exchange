@@ -1,150 +1,197 @@
-# PCL Exchange Data Model using RO-Crate Profile, Schemas, and Shapes
+# PCL Exchange
+
 <a href="https://github.com/htmdec/pcl-exchange" target="_blank" rel="noopener noreferrer">
   <img width="191" height="20" alt="image" src="https://github.com/user-attachments/assets/d7aafa45-ba2c-452a-adef-2132b839d49e" />
 </a>
 
+PCL Exchange is a Python library for creating, signing, receiving, and validating machine-actionable messages between Programmable Cloud Laboratories (PCLs). Each message is an RO-Crate JSON-LD document with a signed routing envelope and a typed scientific payload.
 
+The project provides a small interoperability foundation for asynchronous lab-to-lab exchange. It combines Pydantic models, JSON Schema, SHACL, and Ed25519 detached JWS signatures so that a message carries its structure, context, and integrity information with it.
 
-This repository captures the MADICES Week conception for a minimal, interoperable PCL-to-PCL exchange pattern.  
-It benefited from conversations with Peter Kraus (TU Berlin), Matthew Evans (Cambridge), and Simon Stier (Fraunhofer).
+> **Status:** This project is in alpha. It provides exchange-message primitives and validation, not a transport broker, public-key discovery service, or workflow execution engine.
 
-It uses:
+## Contents
 
-- RO-Crate as the packaging and JSON-LD context carrier  
-- JSON Schema for validating the *envelope* and *error contract*  
-- SHACL shapes for validating *content nodes* such as measurement requests and workflow launches  
+- [What it provides](#what-it-provides)
+- [How messages work](#how-messages-work)
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Receive and validate](#receive-and-validate)
+- [Supported actions](#supported-actions)
+- [Responses and callbacks](#responses-and-callbacks)
+- [Repository guide](#repository-guide)
+- [Development](#development)
 
---
+## What it provides
 
-## Overview
+- RO-Crate JSON-LD packaging for PCL action messages.
+- Typed Pydantic payload models for five laboratory exchange actions.
+- Ed25519 detached JWS signing and verification for envelopes.
+- JSON Schema validation for envelope structure and SHACL validation for payload semantics.
+- Receiver-side parsing that reports actionable validation errors.
+- `ack` and `nack` response builders, plus an HTTP callback client with retries for transient failures.
 
-The goal of this work is to define a **minimum viable contract** for structured, machine-actionable exchange between programmable cloud laboratories (PCLs).  
-It aims to balance minimalism with interoperability, enabling autonomous or semi-autonomous lab-to-lab operations using well-established web standards and persistent identifiers (PIDs).
+## How messages work
 
---
+A PCL Exchange message is an RO-Crate with two primary nodes:
 
-## What is the Minimum Viable Contract for a Receiving PCL?
+1. **Envelope:** identifies the sender and receiver, declares the action and schema, carries routing metadata, links to the content, and contains a detached JWS signature.
+2. **Content:** carries the domain-specific request or data description as JSON-LD.
 
-*(Reflective question: Can the following list be minimized?)*
+When a receiver calls `parse_and_validate_crate`, the library:
 
-### 1. Who and Where
-- Identifiers for sending PCL (**ROR**), person (**ORCID**), and public key reference (**DID**)
-- Intended receiver identifier (**ROR**) *(maybe? not sure really)*  
-- Stable message ID, creation time, and protocol/profile version
+1. Parses the JSON-LD crate and locates the `#envelope` and its referenced content.
+2. Validates the envelope against the bundled [JSON Schema](schemas/envelope.json).
+3. Resolves the sender's public key through your supplied resolver and verifies the Ed25519 detached JWS.
+4. Validates the content against the bundled SHACL shape for the declared action.
 
-### 2. Payload Understandability
-- Canonical schema identifier and version for the payload body
-- Encoding and optional compression or encryption info *(?)*
-- Content checksum for verification check
+The package does not prescribe how peers discover each other, exchange public keys, authorize work, or transport messages. Those concerns belong to the deployment using PCL Exchange.
 
-### 3. Intent (What to Do with the Content)
-- Action verb from a **closed vocabulary**, e.g.  
-  `register_data`, `request_measurement`, `launch_workflow`, `update_metadata`, `cancel_job`  
-  *(Reflective: can we agree a simple schema or can this be done by context interpretation?)*
-- Minimal capability requirement expressed as a **feature tag**, e.g.  
-  `capability: xrd/powder/θ–2θ`, `workflow: cwl@v1.2`
+## Install
 
-### 4. About Which Research Object
-- Project PID (**DataCite DOI** or **RAiD**)
-- Sample PID (**IGSN**)
-- Optional: workflow, instrument, and facility identifiers
+PCL Exchange requires Python 3.9 or later. To work from a clone of this repository, install it in editable mode with its development dependencies:
 
-### 5. Authorization
-- Token or other credential with defined scope
-- Data use constraints *(there will be users who want their data to be private; may need an ontology for the options so a receiver can decide if they can honor the constraints)*
+```bash
+python -m pip install -e ".[dev]"
+```
 
-### 6. Routing and Responses
-- Acknowledge receipt with a callback channel
-- Schedule constraints such as deadline and priority
+For library-only dependencies, omit `.[dev]`.
 
-### 7. Provenance Crumbs
-- Who constructed the payload
-- When
-- From which upstream artifacts
+## Quick start
 
---
+Create a measurement request, add envelope metadata, sign it with an Ed25519 key, and serialize the resulting RO-Crate:
 
-## Optional Additions for Version 2
+```python
+from jwcrypto import jwk
 
-*(Reflective: Not necessary but useful?)*
+from pcl_exchange.builder import PCLMessageBuilder
+from pcl_exchange.crypto import Signer
+from pcl_exchange.models import PCLMeasurementRequestContent
 
-- Version negotiation workflows  
-- Replay protection for action requests  
-- Validation hooks (JSON Schema or SHACL shape URI)  
-- Explicit time zone and units  
-- Error contract  
-- Data sensitivity tagging  
+private_key = jwk.JWK.generate(kty="OKP", crv="Ed25519")
 
---
+payload = PCLMeasurementRequestContent.create(
+    instrument_ref={"@id": "urn:example:instrument:xrd-01"},
+    sample_ref={"@id": "igsn:EXAMPLE0001"},
+    method_ref={"@id": "urn:example:method:xrd-powder-v1"},
+    params={
+        "scan_range": {"val": "10 90", "unit": "deg 2theta"},
+        "step": {"val": 0.02, "unit": "deg"},
+    },
+)
 
-## Ontology Stack
+builder = PCLMessageBuilder(
+    sender_id="https://ror.org/0sndfake1",
+    receiver_id="https://ror.org/0rcvfake1",
+    action_type="request_measurement",
+)
+builder.set_payload(payload)
+builder.set_envelope_metadata(
+    project="doi:10.5072/example.project",
+    sample="igsn:EXAMPLE0001",
+    capabilities=["xrd.powder.theta-2theta"],
+    respond_to="https://sender.example.org/pcl/callback",
+    correlation_id="request-2026-0001",
+)
+builder.sign(Signer(private_key))
 
-**Do not** invent a new ontology.  
-Compose a small, interoperable stack and use an **RO-Crate Profile** to bundle it.
+crate = builder.build()
+crate_json = crate.to_json()
+```
 
-- **RO-Crate** as the container and JSON-LD context carrier, with a profile URI that says “this is a PCL-to-PCL action crate.”
-- **W3C PROV-O** for provenance of the message and any included data or workflow
-- **schema.org** types for high-level objects (`Dataset`, `SoftwareSourceCode`, `CreativeWork`)
-- **CWL**, **CWLProv**, or **WfProv/WfDesc** for workflows and runs when the intent is to execute
-- **Persistent Identifiers (PIDs):**
-  - Project: DOI or RAiD
-  - Sample: IGSN
-  - People: ORCID
-  - Organizations: ROR
-  - Instruments or facilities: PIDInst (DataCite) and RRID
-  - Units: QUDT or OM for quantities and units
-  - Verifiable credentials: W3C Verifiable Credentials / Presentations
-  - Data use policy: ODRL (Open Digital Rights Language)
-- **Events:** map the envelope to **CloudEvents** fields so you can move it over Kafka, NATS, or HTTP consistently.
+Replace these placeholder identifiers with persistent identifiers and endpoints appropriate to your deployment. The builder includes the RO-Crate context, computes a SHA-256 digest of the content, and seals the builder after signing so signed fields cannot be modified.
 
---
+## Receive and validate
 
-## Two Layers Inside the RO-Crate
+The receiver is responsible for mapping a sender identifier to a trusted public key. In production, the resolver should return the sender's trusted public key, not the private key used in this demonstration.
 
-The RO-Crate structure for PCL exchange consists of **two distinct layers**:
+```python
+from jwcrypto import jwk
 
-### 1. Envelope Entity (Machine Routing and Validation)
-Defines the outer envelope that carries metadata required for validation and routing.
+from pcl_exchange.receiver import parse_and_validate_crate
 
-| Field | Description |
-|-----|----------|
-| `type` | `PCLActionEnvelope` (a profile class) |
-| `profile` | URI of the RO-Crate profile |
-| `id`, `time`, `sender`, `receiver` | Identification and timing info |
-| `schema` | URI for the body schema and version |
-| `hash`, `size`, `encoding`, `encryption` | Verification and transfer info |
-| `action` | Controlled vocabulary term |
-| `capabilities` | List of required features |
-| `authz` | JWT in detached JWS form, or a Verifiable Presentation reference |
+def resolve_public_key(sender_id: str) -> jwk.JWK:
+    if sender_id != "https://ror.org/0sndfake1":
+        raise LookupError(sender_id)
+    return private_key
 
-### 2. Content Entity (Domain Payload)
-The payload itself, typically one of the following:
+result = parse_and_validate_crate(crate_json, resolve_public_key)
 
-| Use Case | Entity Type | Key Fields |
-|--------|----------|--------|
-| **Data Registration** | `Dataset` | Distributions, checksums, and PIDs, plus PROV links |
-| **Workflow Launch** | `SoftwareSourceCode` or `ComputationalWorkflow` | CWL file, parameters, optional tool references |
-| **Measurement Request** | `Action` | Instrument, sample, method, parameters, and acceptance criteria |
+if result.valid:
+    envelope = result.envelope
+    content = result.content
+    print(f"Accepted {envelope['action']} from {envelope['sender']}")
+else:
+    for error in result.errors:
+        print(f"{error.code}: {error.message}")
+```
 
---
+`parse_and_validate_crate` accepts a Python dictionary, a JSON string, or a `pathlib.Path`. A string that names an existing file is read as a path; otherwise it is parsed as JSON text. The returned `CrateParseResult` includes the extracted envelope and content, a validation result, errors, and the SHACL report when semantic validation is run.
 
-## Minimal JSON-LD Sketch
+## Supported actions
 
-*(Reflective: Trying to be compact and start the idea. More or less the same pattern for data registration or workflow launch.)*
+| Envelope action | Content model | Purpose |
+| --- | --- | --- |
+| `request_measurement` | `PCLMeasurementRequestContent` | Request an instrument measurement for a sample using a declared method and parameters. |
+| `register_data` | `PCLRegisterDataContent` | Register a dataset, its project/sample context, provenance, and distribution details. |
+| `launch_workflow` | `PCLLaunchWorkflowContent` | Describe a workflow to launch, including language, parameters, and optional repository or container references. |
+| `update_metadata` | `PCLUpdateMetadataContent` | Replace supported metadata fields on a target resource. |
+| `cancel_job` | `PCLCancelJobContent` | Cancel an originating request by its shared `correlationId`. |
 
-```json
-{
-  "@context": "https://w3id.org/ro/crate/1.1/context",
-  "@type": "PCLActionEnvelope",
-  "id": "urn:uuid:1234",
-  "sender": "https://ror.org/03yrm5c26",
-  "receiver": "https://ror.org/05fm5zp12",
-  "action": "request_measurement",
-  "content": {
-    "@type": "Action",
-    "instrument": "PIDInst:12345",
-    "sample": "IGSN:XYZ123",
-    "method": "ASTM E112",
-    "parameters": { "load": { "value": 100, "unit": "N" } }
-  }
-}
+The action-specific SHACL files live in [schemas/shapes](schemas/shapes). In the current profile, `update_metadata` is replace-only and permits `name`, `description`, `license`, and `keywords`; it does not provide merge, deletion, or arbitrary JSON Patch behavior.
+
+## Responses and callbacks
+
+Use `build_ack` to create a minimal acknowledgement envelope or `build_nack` to pair a negative acknowledgement envelope with a structured `PCLError`. Response envelopes reverse the original sender and receiver and preserve relevant correlation and idempotency fields.
+
+`CallbackClient` posts a response crate as `application/ld+json` to a `respondTo` URL. It retries connection/timeout failures and HTTP `429`, `500`, `502`, `503`, and `504` responses. The response helpers create unsigned envelopes; deployments should define and apply their own response-signing policy where required.
+
+```python
+from pcl_exchange.builder import build_ack
+from pcl_exchange.callback import CallbackClient
+from pcl_exchange.models import PCLEnvelope
+
+received_envelope = PCLEnvelope.model_validate(result.envelope)
+ack = build_ack(received_envelope, job_id="receiver-job-42")
+delivery = CallbackClient().send("https://sender.example.org/pcl/callback", ack)
+```
+
+`build_ack` expects a `PCLEnvelope` model. Convert the validated envelope dictionary, as shown above, or use an envelope model maintained by your application.
+
+## Repository guide
+
+| Location | Description |
+| --- | --- |
+| [src/pcl_exchange/models.py](src/pcl_exchange/models.py) | JSON-LD Pydantic models for envelopes, content, messages, and errors. |
+| [src/pcl_exchange/builder.py](src/pcl_exchange/builder.py) | Fluent message builder and response helpers. |
+| [src/pcl_exchange/crypto.py](src/pcl_exchange/crypto.py) | Canonicalization, content digests, Ed25519 signing, and verification. |
+| [src/pcl_exchange/receiver.py](src/pcl_exchange/receiver.py) | End-to-end crate parsing, signature verification, and validation orchestration. |
+| [src/pcl_exchange/validation.py](src/pcl_exchange/validation.py) | JSON Schema and SHACL validation APIs. |
+| [schemas](schemas) | Bundled envelope/error schemas and action-specific SHACL shapes. |
+| [examples/pcl_action_crate_example.json](examples/pcl_action_crate_example.json) | Signed measurement-request RO-Crate example. |
+| [examples/pcl_workflow_crate_example.json](examples/pcl_workflow_crate_example.json) | Workflow-launch RO-Crate example. |
+| [examples/workflow_demo.ipynb](examples/workflow_demo.ipynb) | Notebook demonstration of the workflow example. |
+| [tests](tests) | Executable examples of building, signing, receiving, validation, and callback behavior. |
+
+## Development
+
+Run the test suite from an activated Python environment:
+
+```bash
+python -m pytest
+```
+
+On Unix-like systems, the [Makefile](Makefile) also provides these targets:
+
+```bash
+make install
+make test
+make validate
+make build
+```
+
+`make validate` checks the committed examples against the bundled JSON Schema and SHACL shapes.
+
+## Contributing and license
+
+Please report bugs and interoperability questions through the [issue tracker](https://github.com/htmdec/pcl-exchange/issues). The project is distributed under the [MIT License](LICENSE).

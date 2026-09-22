@@ -1,36 +1,129 @@
-name: Validate Schemas and Shapes
+name: PCL Exchange CI
 
 on:
   push:
+    branches: [ "main" ]
   pull_request:
+    branches: [ "main" ]
 
 jobs:
-  validate:
+  # static validation job
+  validate-static:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 'lts/*'
-
-      - name: Install ajv-cli
-        run: npm install -g ajv-cli
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install pyshacl
-        run: pip install pyshacl rdflib
+      - name: Install Python dependencies
+        run: pip install pyshacl rdflib jsonschema
 
       - name: Validate JSON Schemas
         run: |
-          ajv validate -s schemas/envelope.json -d examples/pcl_action_crate_example.json --strict=false || true
-          ajv validate -s schemas/error.json -d <(echo '{"type":"https://w3id.org/pcl-profile/action/v1#Error","timestamp":"2025-01-01T00:00:00Z","code":"INVALID_ENVELOPE","reason":"demo"}') --strict=false
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from jsonschema import Draft202012Validator, FormatChecker
 
-      - name: Validate SHACL
+          schema_dir = Path("schemas")
+          example = Path("examples/pcl_action_crate_example.json")
+
+          envelope_schema = json.loads((schema_dir / "envelope.json").read_text(encoding="utf-8"))
+          error_schema = json.loads((schema_dir / "error.json").read_text(encoding="utf-8"))
+          crate = json.loads(example.read_text(encoding="utf-8"))
+          envelope = next((n for n in crate.get("@graph", []) if n.get("@id") == "#envelope"), None)
+          assert envelope is not None, "Example crate missing #envelope node"
+
+          error_example = {
+              "type": "https://w3id.org/pcl-profile/action/v1#Error",
+              "timestamp": "2025-01-01T00:00:00Z",
+              "code": "INVALID_ENVELOPE",
+              "reason": "demo",
+          }
+
+          env_errors = list(Draft202012Validator(envelope_schema, format_checker=FormatChecker()).iter_errors(envelope))
+          err_errors = list(Draft202012Validator(error_schema, format_checker=FormatChecker()).iter_errors(error_example))
+          assert not env_errors, f"Envelope schema failed: {env_errors[0].message}"
+          assert not err_errors, f"Error schema failed: {err_errors[0].message}"
+          print("JSON schema validation passed")
+          PY
+
+      - name: Validate SHACL (measurement case)
         run: |
-          python scripts/validate_shacl.py --data examples/pcl_action_crate_example.json --shapes shapes/measurement_request.ttl shapes/workflow_launch.ttl
+          python - <<'PY'
+          import sys
+          from rdflib import Graph
+          from pyshacl import validate
+
+          data_graph = Graph()
+          data_graph.parse("examples/pcl_action_crate_example.json", format="json-ld")
+
+          shape = "schemas/shapes/request_measurement.ttl"
+          shape_graph = Graph()
+          shape_graph.parse(shape, format="turtle")
+          conforms, _, report = validate(
+              data_graph,
+              shacl_graph=shape_graph,
+              inference="rdfs",
+              abort_on_first=False,
+              allow_infos=True,
+              allow_warnings=True,
+          )
+          if conforms:
+              print(f"SHACL passed: {shape}")
+              sys.exit(0)
+
+          print(f"SHACL failed: {shape}")
+          print(report)
+          sys.exit(1)
+          PY
+
+      - name: Validate SHACL (workflow case)
+        run: |
+          python - <<'PY'
+          import sys
+          from rdflib import Graph
+          from pyshacl import validate
+
+          data_graph = Graph()
+          data_graph.parse("examples/pcl_workflow_crate_example.json", format="json-ld")
+
+          shape = "schemas/shapes/launch_workflow.ttl"
+          shape_graph = Graph()
+          shape_graph.parse(shape, format="turtle")
+          conforms, _, report = validate(
+              data_graph,
+              shacl_graph=shape_graph,
+              inference="rdfs",
+              abort_on_first=False,
+              allow_infos=True,
+              allow_warnings=True,
+          )
+          if conforms:
+              print(f"SHACL passed: {shape}")
+              sys.exit(0)
+
+          print(f"SHACL failed: {shape}")
+          print(report)
+          sys.exit(1)
+          PY
+
+  # unit tests job
+  test-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Package
+        run: pip install -e ".[dev]"
+
+      - name: Run Pytest
+        run: pytest

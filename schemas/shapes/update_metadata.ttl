@@ -1,0 +1,65 @@
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <http://schema.org/> .
+@prefix prov:   <http://www.w3.org/ns/prov#> .
+@prefix qudt:   <http://qudt.org/schema/qudt/> .
+@prefix pcl:    <https://w3id.org/pcl-profile/action/v1/terms#> .
+
+###############################################################################
+# Root shape for a metadata update content entity
+# Semantics are replace-only: each parameter overwrites one allowlisted field
+# on the referenced resource. No merge, delete, or arbitrary-field patching.
+###############################################################################
+
+pcl:MetadataUpdateShape
+    a sh:NodeShape ;
+    sh:targetClass schema:UpdateAction ;
+    sh:property [
+        sh:path schema:object ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "schema:object must be the IRI of the resource being updated" ;
+    ] ;
+    sh:property [
+        sh:path prov:wasAttributedTo ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "Updates must declare the origin laboratory (ROR) or researcher (ORCID) for authorization" ;
+    ] ;
+    sh:property [
+        sh:path schema:parameter ;
+        sh:minCount 1 ;
+        sh:node pcl:MetadataFieldShape ;
+        sh:message "Must specify at least one metadata field replacement" ;
+    ] .
+
+###############################################################################
+# Metadata field shape: one allowlisted field name paired with its new value
+###############################################################################
+
+pcl:MetadataFieldShape
+    a sh:NodeShape ;
+    sh:targetClass schema:PropertyValue ;
+    sh:property [
+        sh:path schema:name ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "name" "description" "license" "keywords" ) ;
+        sh:message "Field name must be one of: name, description, license, keywords" ;
+    ] ;
+    sh:property [
+        sh:path schema:value ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:or (
+            [ sh:datatype xsd:string ]
+            [ sh:datatype xsd:integer ]
+            [ sh:datatype xsd:decimal ]
+            [ sh:datatype xsd:boolean ]
+            [ sh:nodeKind sh:IRI ]
+        ) ;
+        sh:message "Field must have a replacement value of type string, number, boolean, or IRI" ;
+    ] .
